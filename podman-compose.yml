@@ -12,5 +12,5 @@ services:
       DATA_DIR: /app/data
     volumes:
       - ./data:/app/data:Z
+      - ./app:/app/app:Z
     restart: unless-stopped
-
