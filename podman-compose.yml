@@ -1,0 +1,16 @@
+services:
+  gemma-notebook:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: gemma-notebook
+    network_mode: host
+    environment:
+      OLLAMA_URL: http://127.0.0.1:11434
+      GENERATION_MODEL: gemma4-e4b-64k:latest
+      EMBEDDING_MODEL: nomic-embed-text:latest
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data:Z
+    restart: unless-stopped
+

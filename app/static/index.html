@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Gemma Notebook</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-button mobile-only" id="sourcesToggle" aria-label="Show sources">☰</button>
+    <a class="brand" href="/">
+      <span class="brand-mark">G</span>
+      <span>Gemma Notebook</span>
+    </a>
+    <div class="notebook-title" id="currentTitle">Choose a notebook</div>
+    <div class="top-actions">
+      <span class="status" id="modelStatus"><i></i><span>Checking Ollama</span></span>
+      <button class="icon-button" id="themeButton" title="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main class="workspace empty" id="workspace">
+    <aside class="panel sources-panel" id="sourcesPanel">
+      <div class="panel-heading">
+        <div>
+          <span class="eyebrow">Library</span>
+          <h2>Notebooks</h2>
+        </div>
+        <button class="icon-button primary-soft" id="newNotebook" title="New notebook">＋</button>
+      </div>
+      <div id="notebookList" class="notebook-list"></div>
+
+      <div class="sources-section hidden" id="sourcesSection">
+        <div class="section-title">
+          <h3>Sources <span id="sourceCount">0</span></h3>
+          <div>
+            <button class="icon-button" id="pasteButton" title="Paste text">⌘</button>
+            <button class="icon-button" id="uploadButton" title="Upload files">↑</button>
+          </div>
+        </div>
+        <input type="file" id="fileInput" multiple hidden accept=".pdf,.docx,.odt,.txt,.md,.markdown,.html,.htm,.csv">
+        <div class="source-list" id="sourceList"></div>
+      </div>
+    </aside>
+
+    <section class="panel chat-panel">
+      <div class="welcome" id="welcome">
+        <div class="welcome-orbit"><span>G</span></div>
+        <p class="eyebrow">Private research workspace</p>
+        <h1>Think with your sources.</h1>
+        <p>Create a notebook, add documents, and ask Gemma for answers grounded in what you provided.</p>
+        <button class="button primary" id="welcomeCreate">Create your first notebook</button>
+      </div>
+
+      <div class="chat-content hidden" id="chatContent">
+        <div class="chat-toolbar">
+          <div><span id="readySourceCount">0</span> sources ready</div>
+          <button class="text-button danger" id="clearChat">Clear chat</button>
+        </div>
+        <div class="messages" id="messages">
+          <div class="chat-intro" id="chatIntro">
+            <span class="spark">✦</span>
+            <h2>Ask across your notebook</h2>
+            <p>Answers include citations that open the supporting source excerpt.</p>
+            <div class="suggestions" id="suggestions"></div>
+          </div>
+        </div>
+        <form class="composer" id="chatForm">
+          <textarea id="question" rows="1" maxlength="12000" placeholder="Ask a question about your sources…"></textarea>
+          <button type="button" class="icon-button hidden" id="stopButton" title="Stop generation">■</button>
+          <button class="send-button" id="sendButton" aria-label="Send">↑</button>
+          <div class="composer-foot"><span id="selectedSourceLabel">All enabled sources</span><span>Gemma can make mistakes—check citations.</span></div>
+        </form>
+      </div>
+    </section>
+
+    <aside class="panel studio-panel" id="studioPanel">
+      <div class="panel-heading">
+        <div><span class="eyebrow">Workspace</span><h2>Studio</h2></div>
+        <button class="icon-button mobile-only" id="studioClose">×</button>
+      </div>
+      <div class="studio-empty" id="studioEmpty">Generated research tools and your notes will live here.</div>
+      <div class="studio-content hidden" id="studioContent">
+        <h3>Generate</h3>
+        <div class="artifact-grid">
+          <button class="artifact-card" data-kind="summary"><span>≡</span><b>Summary</b><small>Key ideas and evidence</small></button>
+          <button class="artifact-card" data-kind="faq"><span>?</span><b>FAQ</b><small>Questions and answers</small></button>
+          <button class="artifact-card" data-kind="guide"><span>◇</span><b>Study guide</b><small>Concepts and review</small></button>
+        </div>
+        <div class="section-title saved-title"><h3>Saved</h3><button class="text-button" id="newNote">＋ Note</button></div>
+        <div class="saved-list" id="savedList"></div>
+      </div>
+    </aside>
+  </main>
+
+  <button class="studio-fab mobile-only" id="studioToggle">Studio</button>
+
+  <dialog id="promptDialog">
+    <form method="dialog" id="promptForm">
+      <div class="dialog-head"><h2 id="promptTitle">New notebook</h2><button value="cancel" class="icon-button">×</button></div>
+      <label id="promptNameLabel">Name<input id="promptName" maxlength="180" required></label>
+      <label id="promptTextLabel" class="hidden">Text<textarea id="promptText" rows="12" maxlength="2000000"></textarea></label>
+      <div class="dialog-actions"><button value="cancel" class="button ghost">Cancel</button><button value="default" class="button primary" id="promptSubmit">Create</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="editorDialog" class="editor-dialog">
+    <form method="dialog" id="editorForm">
+      <div class="dialog-head"><input id="editorTitle" maxlength="180" required><button value="cancel" class="icon-button">×</button></div>
+      <textarea id="editorContent" rows="20" maxlength="500000"></textarea>
+      <div class="dialog-actions"><button type="button" class="text-button danger" id="deleteSaved">Delete</button><span></span><button value="cancel" class="button ghost">Cancel</button><button value="default" class="button primary">Save</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="citationDialog" class="citation-dialog">
+    <form method="dialog">
+      <div class="dialog-head"><div><span class="eyebrow">Source citation</span><h2 id="citationTitle"></h2></div><button value="cancel" class="icon-button">×</button></div>
+      <p class="citation-location" id="citationLocation"></p>
+      <blockquote id="citationExcerpt"></blockquote>
+      <a class="button ghost" id="citationFile" target="_blank">Open original</a>
+    </form>
+  </dialog>
+
+  <div class="toast-stack" id="toasts"></div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
