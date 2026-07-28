@@ -359,7 +359,7 @@ def original_file(source_id: str):
     source = db.row("SELECT * FROM sources WHERE id=?", (source_id,))
     if not source or not source["path"] or not Path(source["path"]).is_file():
         raise HTTPException(404, "Source file not found")
-    return FileResponse(source["path"], filename=source["name"])
+    return FileResponse(source["path"], filename=source["name"], content_disposition_type="inline")
 
 
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")

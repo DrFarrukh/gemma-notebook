@@ -1,125 +1,333 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark light">
   <title>Gemma Notebook</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
+  <!-- Global Navigation Header -->
   <header class="topbar">
-    <button class="icon-button mobile-only" id="sourcesToggle" aria-label="Show sources">☰</button>
-    <a class="brand" href="/">
-      <span class="brand-mark">G</span>
-      <span>Gemma Notebook</span>
-    </a>
-    <div class="notebook-title" id="currentTitle">Choose a notebook</div>
-    <div class="top-actions">
-      <span class="status" id="modelStatus"><i></i><span>Checking Ollama</span></span>
-      <button class="icon-button" id="themeButton" title="Toggle theme">◐</button>
+    <div class="topbar-left">
+      <a class="brand" href="#" id="brandLogo" title="Back to All Notebooks">
+        <div class="brand-logo-arc">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="url(#arc-grad)"/>
+            <path d="M12 6a6 6 0 0 0-6 6h2a4 4 0 0 1 4-4V6z" fill="#3b82f6"/>
+            <defs>
+              <linearGradient id="arc-grad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#3b82f6"/>
+                <stop offset="1" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <span class="brand-name">Gemma Notebook</span>
+      </a>
+
+      <!-- Shown when inside a notebook -->
+      <div class="notebook-nav-title hidden" id="notebookNavTitle">
+        <span class="divider-slash">/</span>
+        <button class="notebook-title-btn" id="notebookTitleBtn">
+          <span id="currentTitle">Notebook</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Landing Nav Tabs (Shown on Landing page) -->
+    <div class="topbar-center" id="landingNavTabs">
+      <nav class="nav-tabs">
+        <button class="nav-tab active">My notebooks</button>
+      </nav>
+    </div>
+
+    <!-- Right Header Actions -->
+    <div class="topbar-right">
+      <div class="status" id="modelStatus" title="Ollama Local Model Status">
+        <span class="beacon-ring"></span>
+        <span class="status-label">Local AI</span>
+      </div>
+
+      <button class="btn-create-notebook" id="topCreateBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Create new</span>
+      </button>
+
+      <button class="icon-button" id="themeButton" title="Toggle Theme">
+        <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="theme-icon-light hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
     </div>
   </header>
 
-  <main class="workspace empty" id="workspace">
-    <aside class="panel sources-panel" id="sourcesPanel">
-      <div class="panel-heading">
-        <div>
-          <span class="eyebrow">Library</span>
-          <h2>Notebooks</h2>
-        </div>
-        <button class="icon-button primary-soft" id="newNotebook" title="New notebook">＋</button>
+  <!-- LANDING PAGE VIEW (My Notebooks Grid) -->
+  <main class="landing-view" id="landingView">
+    <div class="landing-container">
+      <div class="landing-header">
+        <h1>My notebooks</h1>
       </div>
-      <div id="notebookList" class="notebook-list"></div>
 
-      <div class="sources-section hidden" id="sourcesSection">
-        <div class="section-title">
-          <h3>Sources <span id="sourceCount">0</span></h3>
-          <div>
-            <button class="icon-button" id="pasteButton" title="Paste text">⌘</button>
-            <button class="icon-button" id="uploadButton" title="Upload files">↑</button>
+      <div class="notebook-grid" id="notebookGrid">
+        <!-- Create new card -->
+        <button class="create-card" id="cardCreateBtn">
+          <div class="plus-circle">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </div>
-        </div>
-        <input type="file" id="fileInput" multiple hidden accept=".pdf,.docx,.odt,.txt,.md,.markdown,.html,.htm,.csv">
-        <div class="source-list" id="sourceList"></div>
+          <span>Create new notebook</span>
+        </button>
+        <!-- Notebook cards rendered via JS -->
       </div>
+    </div>
+  </main>
+
+  <!-- WORKSPACE VIEW (Active Notebook Workspace) -->
+  <main class="workspace hidden" id="workspace">
+
+    <!-- Left Sidebar: Sources -->
+    <aside class="panel sources-panel" id="sourcesPanel">
+      <div class="panel-header">
+        <h2>Sources</h2>
+        <button class="icon-button mobile-only" id="sourcesClose">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <button class="add-sources-pill-btn" id="addSourcesBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Add sources</span>
+      </button>
+
+      <div class="source-search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="sourceSearchInput" placeholder="Search sources...">
+      </div>
+
+      <div class="sources-control-bar">
+        <span class="source-count-label" id="sourceCountLabel">0 sources</span>
+        <button class="text-button-subtle" id="selectAllSourcesBtn" title="Toggle all sources">
+          <span>Select all</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        </button>
+      </div>
+
+      <input type="file" id="fileInput" multiple hidden accept=".pdf,.docx,.odt,.txt,.md,.markdown,.html,.htm,.csv">
+
+      <div class="drop-zone hidden" id="dropZone">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span>Drop files to upload</span>
+      </div>
+
+      <div class="source-list" id="sourceList"></div>
     </aside>
 
+    <!-- Center Workspace: Chat & Overview -->
     <section class="panel chat-panel">
-      <div class="welcome" id="welcome">
-        <div class="welcome-orbit"><span>G</span></div>
-        <p class="eyebrow">Private research workspace</p>
-        <h1>Think with your sources.</h1>
-        <p>Create a notebook, add documents, and ask Gemma for answers grounded in what you provided.</p>
-        <button class="button primary" id="welcomeCreate">Create your first notebook</button>
+      <div class="chat-header">
+        <span class="chat-header-title">Chat</span>
+        <div class="chat-header-right">
+          <button class="text-button" id="clearChat">Clear chat</button>
+        </div>
       </div>
 
-      <div class="chat-content hidden" id="chatContent">
-        <div class="chat-toolbar">
-          <div><span id="readySourceCount">0</span> sources ready</div>
-          <button class="text-button danger" id="clearChat">Clear chat</button>
+      <div class="messages" id="messages">
+        <!-- Notebook Intro Banner when fresh -->
+        <div class="notebook-overview-banner" id="notebookBanner">
+          <div class="banner-icon" id="bannerEmoji">📘</div>
+          <h1 id="bannerTitle">Notebook Overview</h1>
+          <p class="banner-meta" id="bannerMeta">0 sources</p>
+          <div class="suggestions-row" id="suggestions"></div>
         </div>
-        <div class="messages" id="messages">
-          <div class="chat-intro" id="chatIntro">
-            <span class="spark">✦</span>
-            <h2>Ask across your notebook</h2>
-            <p>Answers include citations that open the supporting source excerpt.</p>
-            <div class="suggestions" id="suggestions"></div>
-          </div>
-        </div>
+      </div>
+
+      <!-- Floating Composer -->
+      <div class="composer-container">
         <form class="composer" id="chatForm">
-          <textarea id="question" rows="1" maxlength="12000" placeholder="Ask a question about your sources…"></textarea>
-          <button type="button" class="icon-button hidden" id="stopButton" title="Stop generation">■</button>
-          <button class="send-button" id="sendButton" aria-label="Send">↑</button>
-          <div class="composer-foot"><span id="selectedSourceLabel">All enabled sources</span><span>Gemma can make mistakes—check citations.</span></div>
+          <textarea id="question" rows="1" maxlength="12000" placeholder="Start typing..."></textarea>
+          <div class="composer-footer-right">
+            <span class="sources-pill-count" id="composerSourceCount">0 sources</span>
+            <button type="button" class="icon-button danger hidden" id="stopButton" title="Stop generation">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+            </button>
+            <button class="send-circle-btn" id="sendButton" aria-label="Send message">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            </button>
+          </div>
         </form>
       </div>
     </section>
 
+    <!-- Right Sidebar: Studio -->
     <aside class="panel studio-panel" id="studioPanel">
-      <div class="panel-heading">
-        <div><span class="eyebrow">Workspace</span><h2>Studio</h2></div>
-        <button class="icon-button mobile-only" id="studioClose">×</button>
+      <div class="panel-header">
+        <h2>Studio</h2>
+        <button class="icon-button mobile-only" id="studioClose">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      <div class="studio-empty" id="studioEmpty">Generated research tools and your notes will live here.</div>
-      <div class="studio-content hidden" id="studioContent">
-        <h3>Generate</h3>
-        <div class="artifact-grid">
-          <button class="artifact-card" data-kind="summary"><span>≡</span><b>Summary</b><small>Key ideas and evidence</small></button>
-          <button class="artifact-card" data-kind="faq"><span>?</span><b>FAQ</b><small>Questions and answers</small></button>
-          <button class="artifact-card" data-kind="guide"><span>◇</span><b>Study guide</b><small>Concepts and review</small></button>
+
+      <!-- Studio Quick Tool Cards -->
+      <div class="studio-tools-grid">
+        <button class="studio-tool-card" data-kind="summary">
+          <div class="tool-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </div>
+          <span>Summary</span>
+        </button>
+
+        <button class="studio-tool-card" data-kind="faq">
+          <div class="tool-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <span>FAQ</span>
+        </button>
+
+        <button class="studio-tool-card full-width-card" data-kind="guide">
+          <div class="tool-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
+          <span>Study Guide</span>
+        </button>
+      </div>
+
+      <!-- Studio Output & Saved Notes -->
+      <div class="studio-saved-container">
+        <div class="studio-empty-prompt" id="studioEmpty">
+          <div class="wand-icon">🪄</div>
+          <p class="empty-title">Studio output will be saved here.</p>
+          <p class="empty-desc">Generate summaries, study guides, and notes from your sources.</p>
         </div>
-        <div class="section-title saved-title"><h3>Saved</h3><button class="text-button" id="newNote">＋ Note</button></div>
         <div class="saved-list" id="savedList"></div>
       </div>
+
+      <!-- Floating Add Note Button at bottom right of Studio -->
+      <button class="add-note-float-btn" id="newNote">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Add note</span>
+      </button>
     </aside>
   </main>
 
   <button class="studio-fab mobile-only" id="studioToggle">Studio</button>
 
+  <!-- Add Source Modal (File Upload or Paste Text) -->
+  <dialog id="addSourceModal" class="add-source-modal">
+    <div class="dialog-head">
+      <h2>Add sources</h2>
+      <button class="icon-button" id="closeAddSourceModal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="add-source-options">
+      <button class="source-option-card" id="optionUploadFiles">
+        <div class="option-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <b>Upload files</b>
+        <small>PDF, DOCX, TXT, MD, CSV, HTML</small>
+      </button>
+
+      <button class="source-option-card" id="optionPasteText">
+        <div class="option-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+        </div>
+        <b>Copied text</b>
+        <small>Paste text directly</small>
+      </button>
+    </div>
+  </dialog>
+
+  <!-- Notebook Actions -->
+  <dialog id="notebookActionsDialog" class="notebook-actions-dialog">
+    <form method="dialog">
+      <div class="dialog-head">
+        <div><span class="eyebrow">NOTEBOOK</span><h2 id="notebookActionsTitle">Notebook options</h2></div>
+        <button value="cancel" class="icon-button" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="notebook-action-list">
+        <button value="rename" class="notebook-action"><span>✎</span><div><b>Rename notebook</b><small>Change the title shown in your library</small></div></button>
+        <button value="delete" class="notebook-action destructive"><span>⌫</span><div><b>Delete notebook</b><small>Remove its sources, chat, notes, and artifacts</small></div></button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Prompt Modal -->
   <dialog id="promptDialog">
     <form method="dialog" id="promptForm">
-      <div class="dialog-head"><h2 id="promptTitle">New notebook</h2><button value="cancel" class="icon-button">×</button></div>
-      <label id="promptNameLabel">Name<input id="promptName" maxlength="180" required></label>
-      <label id="promptTextLabel" class="hidden">Text<textarea id="promptText" rows="12" maxlength="2000000"></textarea></label>
-      <div class="dialog-actions"><button value="cancel" class="button ghost">Cancel</button><button value="default" class="button primary" id="promptSubmit">Create</button></div>
+      <div class="dialog-head">
+        <h2 id="promptTitle">New notebook</h2>
+        <button value="cancel" class="icon-button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <label id="promptNameLabel">Title<input id="promptName" maxlength="180" required placeholder="Notebook title..."></label>
+      <label id="promptTextLabel" class="hidden">Text<textarea id="promptText" rows="6" maxlength="2000000" placeholder="Paste source text..."></textarea></label>
+      <div class="dialog-actions">
+        <button value="cancel" class="button ghost">Cancel</button>
+        <button value="default" class="button primary" id="promptSubmit">Save</button>
+      </div>
     </form>
   </dialog>
 
+  <!-- Confirm Action Modal -->
+  <dialog id="confirmDialog" class="confirm-dialog">
+    <form method="dialog" id="confirmForm">
+      <div class="dialog-head">
+        <h2 id="confirmTitle">Confirm action</h2>
+        <button value="cancel" class="icon-button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <p id="confirmMessage" class="confirm-message">Are you sure?</p>
+      <div class="dialog-actions">
+        <button value="cancel" class="button ghost">Cancel</button>
+        <button value="confirm" class="button danger-btn" id="confirmSubmit">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Editor Dialog -->
   <dialog id="editorDialog" class="editor-dialog">
     <form method="dialog" id="editorForm">
-      <div class="dialog-head"><input id="editorTitle" maxlength="180" required><button value="cancel" class="icon-button">×</button></div>
-      <textarea id="editorContent" rows="20" maxlength="500000"></textarea>
-      <div class="dialog-actions"><button type="button" class="text-button danger" id="deleteSaved">Delete</button><span></span><button value="cancel" class="button ghost">Cancel</button><button value="default" class="button primary">Save</button></div>
+      <div class="dialog-head">
+        <input id="editorTitle" maxlength="180" required placeholder="Title...">
+        <button value="cancel" class="icon-button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <textarea id="editorContent" rows="16" maxlength="500000" placeholder="Content..."></textarea>
+      <div class="dialog-actions">
+        <button type="button" class="text-button danger" id="deleteSaved">Delete</button>
+        <span></span>
+        <button value="cancel" class="button ghost">Cancel</button>
+        <button value="default" class="button primary">Save</button>
+      </div>
     </form>
   </dialog>
 
+  <!-- Citation Dialog -->
   <dialog id="citationDialog" class="citation-dialog">
     <form method="dialog">
-      <div class="dialog-head"><div><span class="eyebrow">Source citation</span><h2 id="citationTitle"></h2></div><button value="cancel" class="icon-button">×</button></div>
+      <div class="dialog-head">
+        <div>
+          <span class="eyebrow">SOURCE CITATION</span>
+          <h2 id="citationTitle">Source excerpt</h2>
+        </div>
+        <button value="cancel" class="icon-button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
       <p class="citation-location" id="citationLocation"></p>
       <blockquote id="citationExcerpt"></blockquote>
-      <a class="button ghost" id="citationFile" target="_blank">Open original</a>
+      <div class="dialog-actions">
+        <a class="button ghost" id="citationFile" target="_blank" rel="noopener">Open original file</a>
+      </div>
     </form>
   </dialog>
 
