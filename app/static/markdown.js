@@ -2,14 +2,83 @@ function escapeHtml(value = '') {
   return value.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 }
 
+// Keep this grammar and limits in sync with chat.references().
+function citationNumbers(inner) {
+  const term = '[0-9]+(?:[ \\t]*[-–][ \\t]*[0-9]+)?';
+  if (!new RegExp(`^${term}(?:[ \\t]*,[ \\t]*${term})*$`).test(inner)) return null;
+  const numbers = [];
+  const parse = value => value.length <= 16 && Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : null;
+  for (const part of inner.split(/[ \t]*,[ \t]*/)) {
+    const ends = part.split(/[ \t]*[-–][ \t]*/).map(parse);
+    if (ends.includes(null) || (ends.length === 2 && ends[1] < ends[0])) return null;
+    const count = ends.length === 2 ? ends[1] - ends[0] + 1 : 1;
+    if (count > 200 - numbers.length) return null;
+    for (let n = ends[0]; n < ends[0] + count; n++) numbers.push(n);
+  }
+  return numbers;
+}
+
+// Return the end of a same-line Markdown destination, or null. Match chat.py's bound.
+function linkDestinationEnd(text, start) {
+  if (text[start] !== '(') return null;
+  let depth = 0;
+  for (let i = start; i < text.length && i - start <= 2048; i++) {
+    if (text[i] === '\\') {
+      if (i + 1 >= text.length || i + 1 - start > 2048 || text[i + 1] === '\n') return null;
+      i++; continue;
+    }
+    if (text[i] === '\n') return null;
+    if (text[i] === '(' && ++depth > 32) return null;
+    if (text[i] === ')' && --depth === 0) return i + 1;
+  }
+  return null;
+}
+
 function markdown(value, citations = []) {
   const citationIndex = new Map(citations.map((item, index) => [Number(item.number ?? index + 1), index]));
-  const inline = text => escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[(\d+)\]/g, (_, n) => citationIndex.has(Number(n))
-      ? `<button class="citation" data-citation="${citationIndex.get(Number(n))}" title="Open source ${n}">${n}</button>`
-      : `[${n}]`);
+  const inline = text => {
+    const parts = [];
+    const addPlain = value => {
+      for (const piece of value.split(/(\*\*)/)) {
+        if (piece) parts.push(piece === '**' ? {bold: true} : {html: escapeHtml(piece)});
+      }
+    };
+    let end = 0;
+    const tokens = /`[^`]+`|\[[^\]\n]*(?:\]|(?=\n|$))/g;
+    for (const match of text.matchAll(tokens)) {
+      if (match.index < end) continue;
+      addPlain(text.slice(end, match.index));
+      const raw = match[0];
+      if (raw.startsWith('`')) {
+        parts.push({html: `<code>${escapeHtml(raw.slice(1, -1))}</code>`});
+      } else {
+        const inner = raw.slice(1, -1);
+        const linkEnd = raw.endsWith(']') ? linkDestinationEnd(text, match.index + raw.length) : null;
+        const numbers = raw.endsWith(']') && !linkEnd && /^[0-9]/.test(inner) ? citationNumbers(inner) : null;
+        if (linkEnd !== null) {
+          parts.push({html: escapeHtml(text.slice(match.index, linkEnd))});
+          end = linkEnd;
+          continue;
+        } else if (numbers) {
+          parts.push({html: `[${numbers.map(n => citationIndex.has(n)
+            ? `<button class="citation" data-citation="${citationIndex.get(n)}" title="Open source ${n}">${n}</button>`
+            : String(n)).join(', ')}]`});
+        } else addPlain(raw);
+      }
+      end = match.index + raw.length;
+    }
+    addPlain(text.slice(end));
+    // Pair emphasis only outside opaque code and Markdown links; citation HTML stays inside it.
+    const open = [];
+    for (let i = 0; i < parts.length; i++) {
+      if (!parts[i].bold) continue;
+      if (open.length && i > open.at(-1) + 1) {
+        parts[open.pop()].html = '<strong>';
+        parts[i].html = '</strong>';
+      } else open.push(i);
+    }
+    return parts.map(part => part.html ?? '**').join('');
+  };
   const output = [];
   let list = null, paragraph = [], code = [], inCode = false;
   const closeParagraph = () => { if (paragraph.length) output.push(`<p>${paragraph.join('<br>')}</p>`); paragraph = []; };

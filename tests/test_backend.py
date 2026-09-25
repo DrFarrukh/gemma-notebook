@@ -310,13 +310,27 @@ def test_diagnostics_error_does_not_break_chat(env, monkeypatch):
 
 def test_full_numeric_citation_parsing():
     assert chat.references("supported [10] then [1]", range(1, 11)) == {1, 10}
+    assert chat.references("[3,4] [1, 10] [1,2,5,7,10,12] [1][2] [3-5] [5–6]",
+                           range(1, 13)) == {1, 2, 3, 4, 5, 6, 7, 10, 12}
+    assert chat.references("[1,10] [10-12]", {1, 10, 11, 12}) == {1, 10, 11, 12}
     assert chat.references("[title](url) and [a] [10]", range(1, 11)) == {10}
-    assert chat.references("[2024 report](https://example.org) [2024](url) ![2025 cover](img.png) [10]",
+    assert chat.references("`[2]`\n```python\n[3,4]\n```\n[2024 report](https://example.org) [2024](url) ![2025 cover](img.png) [10]",
                            range(1, 11)) == {10}
-    assert chat.references("[1,2](url) [1]", range(1, 2)) == {1}
-    for text in ("[1,2]", "[1-2]", "[1x]", "unfinished [1", "wrong [11]"):
+    assert chat.references("[1,2](url) ![1-2](img.png) [1]", range(1, 2)) == {1}
+    links = ("[1,2](https://example.org/Foo_(bar)) ![1-2](https://example.org/plot_(final).png) "
+             r"[1](https://example.org/a\(b\)/[2])")
+    assert chat.references(links, {1, 2}) == set()
+    assert chat.references(links + " [2]", {2}) == {2}
+    for text in ("[1x]", "unfinished [1", "wrong [11]", "[1,11]", "[1-11]",
+                 "[0]", "[-1]", "[1,-2]", "[2-1]", "[1–0]", "[1,,2]", "[1,]",
+                 "[1-201]", "[1,2-201]", "[9007199254740992]", "[12345678901234567]"):
         with pytest.raises(ValueError):
             chat.references(text, range(1, 11))
+    assert chat.references("[1-200]", range(1, 201)) == set(range(1, 201))
+    assert chat.references("[1] [1]", {1}) == {1}
+    intent = chat._messages("question", [], [{"role": "user", "content": "Earlier [1, 3-5] " + links + " `code [7]`"}])
+    prior = json.loads(intent[-1]["content"].split('<request_json>\n')[1].split('\n</request_json>')[0])
+    assert prior["prior_user_questions_not_evidence"] == ['Earlier  ' + links + ' `code [7]`']
 
 
 def test_escaped_chat_question_and_history_never_start_oversized_generation(env):
@@ -373,10 +387,11 @@ def test_chat_tenth_citation_and_missing_citation(env):
     client, nid, fake, root = env
     for i in range(10):
         add_source(nid, f"Distinct evidence number {i}")
-    fake.answers = ["Valid tenth [10]", "no references"]
+    fake.answers = ["Valid tenth [1, 10]", "no references"]
     success = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "evidence?"}))
     assert len(success[0]["citations"]) == 10
     assert success[-1]["type"] == "done"
+    assert db.row("SELECT content FROM messages WHERE role='assistant'")["content"] == "Valid tenth [1, 10]"
     failed = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "more evidence?"}))
     assert failed[-1]["type"] == "error"
     assert len(client.get(f"/api/notebooks/{nid}/messages").json()) == 2
@@ -462,10 +477,12 @@ def test_studio_tenth_citation_map_and_final(env):
     client, nid, fake, root = env
     for i in range(10):
         add_source(nid, f"source evidence {i}")
-    fake.answers = [f"Map [{i}]" for i in range(1, 11)] + [" ".join(f"[{i}]" for i in range(1, 11))]
+    fake.answers = [f"Map [{i}]" for i in range(1, 11)] + ["All sources [1-10]"]
     result = events(client.post(f"/api/notebooks/{nid}/artifacts", json={"kind": "faq"}))
     assert result[-1]["type"] == "done"
-    assert json.loads(db.row("SELECT citations FROM artifacts")["citations"])[-1]["number"] == 10
+    saved = db.row("SELECT citations,content FROM artifacts")
+    assert [c["number"] for c in json.loads(saved["citations"])] == list(range(1, 11))
+    assert saved["content"].startswith("All sources [1-10]")
 
 
 def test_studio_persists_only_finally_used_sparse_citations(env):
@@ -475,10 +492,24 @@ def test_studio_persists_only_finally_used_sparse_citations(env):
         conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)", (db.uid(), sid, nid, 1, None, None,
                      "second nonoverlapping evidence", retrieval.pack_vector([1, 0])))
     other, third = add_source(nid, "different source evidence")
-    fake.answers = ["Map both [1] [2]", "Second source [3]", "Only these facts [1] [3]"]
+    fake.answers = ["Map both [1-2]", "Second source [3]", "Only these facts [1,3]"]
     assert events(client.post(f"/api/notebooks/{nid}/artifacts", json={"kind": "summary"}))[-1]["type"] == "done"
     saved = db.row("SELECT citations FROM artifacts WHERE notebook_id=?", (nid,))
     assert [c["number"] for c in json.loads(saved["citations"])] == [1, 3]
+    assert db.row("SELECT content FROM artifacts WHERE notebook_id=?", (nid,))["content"].startswith("Only these facts [1,3]")
+
+
+def test_group_with_unknown_member_does_not_save_chat_or_studio(env):
+    client, nid, fake, root = env
+    add_source(nid, "first evidence")
+    add_source(nid, "second evidence")
+    fake.answers = ["Partial [1,3]"]
+    assert events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "evidence?"}))[-1]["type"] == "error"
+    assert db.row("SELECT COUNT(*) AS n FROM messages")["n"] == 0
+    fake.calls.clear()
+    fake.answers = ["Map [1]", "Map [2]", "Synthesis [1,2,3]"]
+    assert events(client.post(f"/api/notebooks/{nid}/artifacts", json={"kind": "summary"}))[-1]["type"] == "error"
+    assert db.row("SELECT COUNT(*) AS n FROM artifacts")["n"] == 0
 
 
 def test_studio_does_not_silently_skip_ready_source_without_chunks(env):

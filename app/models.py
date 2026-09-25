@@ -8,9 +8,9 @@ from typing import AsyncIterator, Protocol
 import httpx
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-GENERATION_MODEL = os.getenv("GENERATION_MODEL", "gemma4:e4b")
+GENERATION_MODEL = os.getenv("GENERATION_MODEL", "qwen3.5:9b") #gemma4:e4b
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
-NUM_CTX = 65536
+NUM_CTX = 16384 # 65536
 NUM_PREDICT = 4096
 METRIC_KEYS = ("total_duration", "load_duration", "prompt_eval_duration", "eval_duration",
                "prompt_eval_count", "eval_count")

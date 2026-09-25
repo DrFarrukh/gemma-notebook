@@ -12,6 +12,7 @@ function deferred() {
 
 function uiHarness() {
   const nodes = new Map(), requests = [], streams = [], toasts = [];
+  const listeners = {};
   function element() {
     const classes = new Set(['hidden']);
     return {
@@ -23,7 +24,7 @@ function uiHarness() {
       style: {}, scrollHeight: 0, scrollTop: 0, textContent: '', value: '', innerHTML: '',
       lastElementChild: {append() {}},
       append(child) { if (child.className === 'toast') toasts.push(child.textContent); },
-      remove() {}, setAttribute(key, value) { this[key] = value; }, addEventListener() {}, querySelector() { return element(); }, querySelectorAll() { return []; }
+      remove() {}, showModal() { this.open = true; }, setAttribute(key, value) { this[key] = value; }, addEventListener() {}, querySelector() { return element(); }, querySelectorAll() { return []; }
     };
   }
   const node = selector => { if (!nodes.has(selector)) nodes.set(selector, element()); return nodes.get(selector); };
@@ -34,7 +35,8 @@ function uiHarness() {
   const histories = {A: [], B: []};
   const pending = new Map();
   const context = vm.createContext({
-    document: {documentElement: {dataset: {}}, querySelector: node, querySelectorAll: () => [], createElement: element, addEventListener() {}},
+    document: {documentElement: {dataset: {}}, querySelector: node, querySelectorAll: () => [], createElement: element,
+      addEventListener(name, callback) { listeners[name] = callback; }},
     localStorage: {getItem: () => null, setItem() {}}, setTimeout: () => 0, clearTimeout() {}, setInterval() {},
     AbortController, DOMException, markdown, escapeHtml,
     fetch: async path => {
@@ -58,8 +60,32 @@ function uiHarness() {
   });
   vm.runInContext(readFileSync(require.resolve('../app/static/app.js'), 'utf8'), context);
   const state = vm.runInContext('state', context);
-  return {context, state, node, notebooks, histories, requests, streams, toasts, pending, ready: new Promise(setImmediate)};
+  return {context, state, node, notebooks, histories, requests, streams, toasts, pending, listeners, ready: new Promise(setImmediate)};
 }
+
+test('grouped sparse citations open the correct source, page and excerpt', async () => {
+  const ui = uiHarness(); await ui.ready;
+  const citations = [
+    {number: 3, source_name: 'Third', source_id: 'third', page: 2, excerpt: 'Third excerpt'},
+    {number: 10, source_name: 'Tenth', source_id: 'tenth', page: 17, excerpt: 'Tenth excerpt'},
+    {number: 1, source_name: 'First', source_id: 'first', page: null, excerpt: 'First excerpt'}
+  ];
+  const html = markdown('Sources [1, 3, 10]', citations);
+  const message = {_citations: citations};
+  for (const [number, index] of [[1, 2], [3, 0], [10, 1]]) {
+    assert.match(html, new RegExp(`data-citation="${index}" title="Open source ${number}"`));
+    const button = {dataset: {citation: String(index)}, closest(selector) {
+      return selector === '[data-citation]' ? this : selector === '.message' ? message : null;
+    }};
+    await ui.listeners.click({target: button});
+    const item = citations[index];
+    assert.equal(ui.node('#citationTitle').textContent, item.source_name);
+    assert.equal(ui.node('#citationLocation').textContent, item.page ? `Page ${item.page}` : 'Source excerpt');
+    assert.equal(ui.node('#citationExcerpt').textContent, item.excerpt);
+    assert.equal(ui.node('#citationFile').href, `/api/files/${item.source_id}${item.page ? `#page=${item.page}` : ''}`);
+    assert.equal(ui.node('#citationDialog').open, true);
+  }
+});
 
 test('Studio Stop is visible and works during both source-summary and final stages', async () => {
   for (const stage of ['map', 'final']) {

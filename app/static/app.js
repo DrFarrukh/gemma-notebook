@@ -50,7 +50,7 @@ async function loadHealth() {
     const label = el.querySelector('.status-label');
     if (health.ollama && health.generation_ready && health.embedding_ready) {
       el.className = 'status good';
-      if (label) label.textContent = 'Gemma 4 Ready';
+       if (label) label.textContent = `${health.generation_model} Ready`;
     } else {
       el.className = 'status bad';
       if (label) label.textContent = health.ollama ? 'Model missing' : 'Ollama offline';
@@ -257,6 +257,17 @@ async function sendQuestion(question) {
     await streamRequest(`/api/notebooks/${notebookId}/chat`, {question:question.trim(), source_ids:selectedSources()}, event => {
       if (event.type === 'citations') citations = event.citations;
       if (event.type === 'delta') { answer += event.text; if (originalView()) updateMessage(answerEl, answer, citations, true); }
+      if (event.type === 'metrics') {
+        const used = event.metrics.prompt_eval_count + event.metrics.eval_count;
+        const total = models.NUM_CTX; // Note: models.NUM_CTX is not available in JS, we'll use a generic 32k or fetch from health
+        if (originalView()) {
+           const statusEl = answerEl.querySelector('.message-body');
+           const meta = document.createElement('div');
+           meta.className = 'context-meta';
+           meta.textContent = `Tokens: ${used}`;
+           statusEl.parentElement.appendChild(meta);
+        }
+      }
       if (event.type === 'status' && typeof event.message === 'string') { run.status = event.message; renderGenerationStatus(); }
     }, controller.signal);
     if (originalView()) {
@@ -281,7 +292,7 @@ async function sendQuestion(question) {
     }
   } catch (error) {
     if (originalView()) updateMessage(answerEl, `${answer}\n\n_${error.name === 'AbortError' ? 'Generation interrupted; refresh to check saved output.' : `Generation failed: ${error.message}`}_`, citations, false);
-    if (error.name === 'AbortError') toast(`Generation interrupted in ${title}; refresh to check saved output.`);
+    if (error.name === 'AbortError') toast(`Generation interrupted in ${title}; refresh to view history.`);
     else toast(`${title}: ${error.message}`);
   } finally {
     if (state.run === run) { state.generating = false; state.run = null; renderGenerationStatus(); }
