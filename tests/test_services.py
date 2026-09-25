@@ -60,7 +60,7 @@ def test_citations_include_page_and_excerpt():
     assert len(citation["excerpt"]) == 700
 
 
-def test_ollama_stream_uses_configured_model_and_64k_context(monkeypatch):
+def test_ollama_stream_uses_configured_model_and_context(monkeypatch):
     assert services.GENERATION_MODEL == os.getenv("GENERATION_MODEL", "gemma4:e4b")
     requests = []
 
@@ -79,7 +79,7 @@ def test_ollama_stream_uses_configured_model_and_64k_context(monkeypatch):
     assert asyncio.run(collect()) == ["ok"]
     assert requests[0][0] == "/api/chat"
     assert requests[0][1]["model"] == services.GENERATION_MODEL
-    assert requests[0][1]["options"]["num_ctx"] == 65536
+    assert requests[0][1]["options"]["num_ctx"] == int(os.getenv("NUM_CTX", "4096"))
 
 
 import pytest

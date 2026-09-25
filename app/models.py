@@ -8,12 +8,23 @@ from typing import AsyncIterator, Protocol
 import httpx
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-GENERATION_MODEL = os.getenv("GENERATION_MODEL", "qwen3.5:9b") #gemma4:e4b
+GENERATION_MODEL = os.getenv("GENERATION_MODEL", "gemma4:e4b")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
-NUM_CTX = 16384 # 65536
+NUM_CTX = int(os.getenv("NUM_CTX", "4096"))
 NUM_PREDICT = 4096
 METRIC_KEYS = ("total_duration", "load_duration", "prompt_eval_duration", "eval_duration",
                "prompt_eval_count", "eval_count")
+CONTEXT_OPTIONS = (2048, 4096, 8192, 16384, 32768, 65536)
+MIN_NUM_CTX, MAX_NUM_CTX = min(CONTEXT_OPTIONS), max(CONTEXT_OPTIONS)
+
+
+def set_generation_settings(model=None, num_ctx=None):
+    """Update the active generation model and/or context window; validated by caller."""
+    global GENERATION_MODEL, NUM_CTX
+    if model is not None:
+        GENERATION_MODEL = model
+    if num_ctx is not None:
+        NUM_CTX = num_ctx
 
 
 @dataclass
@@ -28,6 +39,7 @@ class Provider(Protocol):
     def stream(self, messages: list[dict]) -> AsyncIterator[ModelEvent]: ...
     async def health(self) -> dict: ...
     async def vram_bytes(self) -> int | None: ...
+    async def list_models(self) -> list[str]: ...
 
 
 def validate_vectors(vectors, count, dimension=None):
@@ -75,13 +87,16 @@ class OllamaProvider:
                 raise RuntimeError("Model stream ended before completion")
 
     async def health(self):
-        async with httpx.AsyncClient(timeout=3) as client:
-            response = await client.get(f"{OLLAMA_URL}/api/tags")
-            response.raise_for_status()
-            names = [item["name"] for item in response.json().get("models", [])]
+        names = await self.list_models()
         return {"app": "ok", "ollama": True, "error": None,
                 "generation_model": GENERATION_MODEL, "embedding_model": EMBEDDING_MODEL,
                 "generation_ready": GENERATION_MODEL in names, "embedding_ready": EMBEDDING_MODEL in names}
+
+    async def list_models(self):
+        async with httpx.AsyncClient(timeout=3) as client:
+            response = await client.get(f"{OLLAMA_URL}/api/tags")
+            response.raise_for_status()
+            return [item["name"] for item in response.json().get("models", [])]
 
     async def vram_bytes(self):
         try:

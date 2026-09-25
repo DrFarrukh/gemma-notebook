@@ -11,7 +11,8 @@ const state = {
   selecting: null,
   editing: null,
   poller: null,
-  sourceQuery: ''
+  sourceQuery: '',
+  numCtx: null
 };
 
 // Emojis for notebook thumbnails
@@ -46,6 +47,7 @@ function selectedSources() {
 async function loadHealth() {
   try {
     const health = await api('/api/health');
+    state.numCtx = health.num_ctx || null;
     const el = $('#modelStatus');
     const label = el.querySelector('.status-label');
     if (health.ollama && health.generation_ready && health.embedding_ready) {
@@ -56,6 +58,33 @@ async function loadHealth() {
       if (label) label.textContent = health.ollama ? 'Model missing' : 'Ollama offline';
     }
   } catch (error) { $('#modelStatus').className = 'status bad'; }
+}
+
+async function loadSettings() {
+  try {
+    const settings = await api('/api/settings');
+    state.numCtx = settings.num_ctx || state.numCtx;
+    const modelSelect = $('#modelSelect'), ctxSelect = $('#ctxSelect');
+    if (modelSelect) {
+      const models = settings.available_models?.length ? settings.available_models : [settings.generation_model];
+      modelSelect.innerHTML = models.map(m => `<option value="${escapeHtml(m)}" ${m === settings.generation_model ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
+    }
+    if (ctxSelect) {
+      ctxSelect.innerHTML = (settings.context_options || []).map(n =>
+        `<option value="${n}" ${n === settings.num_ctx ? 'selected' : ''}>${formatTokens(n)}</option>`).join('');
+    }
+  } catch (error) { /* Settings are optional; ignore if Ollama is unreachable. */ }
+}
+
+async function changeSettings(patch) {
+  try {
+    const updated = await api('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)});
+    state.numCtx = updated.num_ctx;
+    const label = $('#modelStatus .status-label');
+    if (label && updated.generation_model) label.textContent = `${updated.generation_model} Ready`;
+    const meter = $('#contextMeter'); if (meter) meter.classList.add('hidden');
+    toast('Model settings updated.');
+  } catch (error) { toast(`Could not update settings: ${error.message}`); loadSettings(); }
 }
 
 async function loadNotebooks(selectId) {
@@ -230,6 +259,22 @@ function updateSuggestions() {
   $('#suggestions').innerHTML = options.map(x => `<button class="suggestion-chip">${escapeHtml(x)}</button>`).join('');
 }
 
+function formatTokens(n) {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+}
+
+function updateContextMeter(promptTokens, evalTokens) {
+  const el = $('#contextMeter');
+  if (!el || !state.numCtx) return;
+  const used = promptTokens + evalTokens;
+  const pct = Math.min(100, Math.round((used / state.numCtx) * 100));
+  el.classList.remove('hidden');
+  el.classList.toggle('warn', pct >= 75 && pct < 90);
+  el.classList.toggle('danger', pct >= 90);
+  el.textContent = `Context ${pct}% · ${formatTokens(used)}/${formatTokens(state.numCtx)}`;
+  el.title = `${used.toLocaleString()} of ${state.numCtx.toLocaleString()} tokens used (${state.numCtx - used} remaining)`;
+}
+
 function renderGenerationStatus() {
   const run = state.run, same = run && state.current === run.notebookId;
   $('#chatStatus').textContent = run?.kind === 'chat' ? (same ? run.status : `Chat running in ${run.title}…`) : '';
@@ -257,15 +302,11 @@ async function sendQuestion(question) {
     await streamRequest(`/api/notebooks/${notebookId}/chat`, {question:question.trim(), source_ids:selectedSources()}, event => {
       if (event.type === 'citations') citations = event.citations;
       if (event.type === 'delta') { answer += event.text; if (originalView()) updateMessage(answerEl, answer, citations, true); }
-      if (event.type === 'metrics') {
-        const used = event.metrics.prompt_eval_count + event.metrics.eval_count;
-        const total = models.NUM_CTX; // Note: models.NUM_CTX is not available in JS, we'll use a generic 32k or fetch from health
-        if (originalView()) {
-           const statusEl = answerEl.querySelector('.message-body');
-           const meta = document.createElement('div');
-           meta.className = 'context-meta';
-           meta.textContent = `Tokens: ${used}`;
-           statusEl.parentElement.appendChild(meta);
+      if (event.type === 'done' && event.metrics) {
+        const {prompt_eval_count, eval_count} = event.metrics;
+        if (event.num_ctx) state.numCtx = event.num_ctx;
+        if (Number.isInteger(prompt_eval_count) && Number.isInteger(eval_count)) {
+          updateContextMeter(prompt_eval_count, eval_count);
         }
       }
       if (event.type === 'status' && typeof event.message === 'string') { run.status = event.message; renderGenerationStatus(); }
@@ -377,6 +418,13 @@ async function generateArtifact(kind, button) {
   try {
     await streamRequest(`/api/notebooks/${notebookId}/artifacts`, {kind, source_ids:selectedSources()}, event => {
       if (event.type === 'status' && typeof event.message === 'string') { run.status = `${event.message} Generating source summaries, then final output…`; renderGenerationStatus(); }
+      if (event.type === 'done' && event.metrics) {
+        const {prompt_eval_count, eval_count} = event.metrics;
+        if (event.num_ctx) state.numCtx = event.num_ctx;
+        if (Number.isInteger(prompt_eval_count) && Number.isInteger(eval_count)) {
+          updateContextMeter(prompt_eval_count, eval_count);
+        }
+      }
     }, controller.signal);
     toast(`Saved to Studio in ${title}.`);
     if (state.current === notebookId) {
@@ -627,10 +675,14 @@ $('#sourcesClose').onclick = () => $('#sourcesPanel').classList.remove('open');
 $('#studioToggle').onclick = () => $('#studioPanel').classList.add('open');
 $('#studioClose').onclick = () => $('#studioPanel').classList.remove('open');
 
+$('#modelSelect').addEventListener('change', event => changeSettings({generation_model: event.target.value}));
+$('#ctxSelect').addEventListener('change', event => changeSettings({num_ctx: Number(event.target.value)}));
+
 // Initialize
 const initialDark = localStorage.getItem('theme') ? localStorage.getItem('theme') === 'dark' : true;
 setTheme(initialDark);
 setupDragAndDrop();
 loadHealth();
+loadSettings();
 loadNotebooks().catch(error => toast(error.message));
 setInterval(loadHealth, 30000);

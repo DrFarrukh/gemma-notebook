@@ -443,7 +443,7 @@ def test_studio_retry_no_truncation_and_missing_source(env):
     assert run["metrics"]["metric_samples"]["total_duration"] == 4
     assert run["coverage"]["config"] == {"generation_model": models.GENERATION_MODEL,
                                           "embedding_model": models.EMBEDDING_MODEL,
-                                          "num_ctx": 65536, "num_predict": 4096}
+                                          "num_ctx": models.NUM_CTX, "num_predict": 4096}
     assert "First source" not in json.dumps(run)
     fake.calls.clear()
     fake.answers = ["Map [1]", "Map [2]", "Ignored second [1]"]

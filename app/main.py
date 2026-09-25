@@ -50,6 +50,11 @@ class ArtifactIn(BaseModel):
     source_ids: list[str] | None = None
 
 
+class SettingsIn(BaseModel):
+    generation_model: str | None = Field(default=None, min_length=1, max_length=200)
+    num_ctx: int | None = None
+
+
 def require_notebook(notebook_id):
     notebook = db.row("SELECT * FROM notebooks WHERE id=?", (notebook_id,))
     if not notebook:
@@ -66,11 +71,42 @@ def source_json(source):
 @app.get("/api/health")
 async def health():
     try:
-        return await models.provider.health()
+        result = await models.provider.health()
     except Exception:
-        return {"app": "ok", "ollama": False, "error": "Local model unavailable",
-                "generation_model": models.GENERATION_MODEL, "embedding_model": models.EMBEDDING_MODEL,
-                "generation_ready": False, "embedding_ready": False}
+        result = {"app": "ok", "ollama": False, "error": "Local model unavailable",
+                   "generation_model": models.GENERATION_MODEL, "embedding_model": models.EMBEDDING_MODEL,
+                   "generation_ready": False, "embedding_ready": False}
+    result["num_ctx"] = models.NUM_CTX
+    return result
+
+
+@app.get("/api/settings")
+async def get_settings():
+    try:
+        available = await models.provider.list_models()
+    except Exception:
+        available = []
+    return {"generation_model": models.GENERATION_MODEL, "embedding_model": models.EMBEDDING_MODEL,
+            "num_ctx": models.NUM_CTX, "available_models": available, "context_options": list(models.CONTEXT_OPTIONS)}
+
+
+@app.post("/api/settings")
+async def update_settings(payload: SettingsIn):
+    model, num_ctx = None, None
+    if payload.generation_model is not None:
+        try:
+            available = await models.provider.list_models()
+        except Exception:
+            raise HTTPException(503, "Ollama unavailable; cannot verify model")
+        if payload.generation_model not in available:
+            raise HTTPException(400, "Unknown model; it must already be pulled in Ollama")
+        model = payload.generation_model
+    if payload.num_ctx is not None:
+        if payload.num_ctx not in models.CONTEXT_OPTIONS:
+            raise HTTPException(400, f"num_ctx must be one of {models.CONTEXT_OPTIONS}")
+        num_ctx = payload.num_ctx
+    models.set_generation_settings(model, num_ctx)
+    return {"generation_model": models.GENERATION_MODEL, "num_ctx": models.NUM_CTX}
 
 
 @app.get("/api/notebooks/{notebook_id}/diagnostics")
