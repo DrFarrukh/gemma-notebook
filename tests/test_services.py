@@ -1,5 +1,9 @@
+import asyncio
+import json
 import os
 from pathlib import Path
+
+import httpx
 
 os.environ.setdefault("DATA_DIR", "/tmp/gemma-notebook-tests")
 
@@ -54,6 +58,28 @@ def test_citations_include_page_and_excerpt():
     assert citation["number"] == 1
     assert citation["page"] == 3
     assert len(citation["excerpt"]) == 700
+
+
+def test_ollama_stream_uses_configured_model_and_64k_context(monkeypatch):
+    assert services.GENERATION_MODEL == os.getenv("GENERATION_MODEL", "gemma4:e4b")
+    requests = []
+
+    def respond(request):
+        requests.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, text='{"message":{"content":"ok"}}\n{"done":true,"eval_count":1}\n')
+
+    async_client = httpx.AsyncClient
+    monkeypatch.setattr(services.httpx, "AsyncClient", lambda **kwargs: async_client(
+        **kwargs, transport=httpx.MockTransport(respond)
+    ))
+
+    async def collect():
+        return [piece async for piece in services.ollama_stream([{"role": "user", "content": "hi"}])]
+
+    assert asyncio.run(collect()) == ["ok"]
+    assert requests[0][0] == "/api/chat"
+    assert requests[0][1]["model"] == services.GENERATION_MODEL
+    assert requests[0][1]["options"]["num_ctx"] == 65536
 
 
 import pytest

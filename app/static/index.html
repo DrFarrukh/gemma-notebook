@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Gemma Notebook</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
@@ -48,6 +45,7 @@
 
     <!-- Right Header Actions -->
     <div class="topbar-right">
+      <button type="button" class="text-button danger hidden" id="globalStopButton" aria-label="Stop generation">Stop generation</button>
       <div class="status" id="modelStatus" title="Ollama Local Model Status">
         <span class="beacon-ring"></span>
         <span class="status-label">Local AI</span>
@@ -130,6 +128,7 @@
       <div class="chat-header">
         <span class="chat-header-title">Chat</span>
         <div class="chat-header-right">
+          <span id="chatStatus" class="generation-status" role="status" aria-live="polite"></span>
           <button class="text-button" id="clearChat">Clear chat</button>
         </div>
       </div>
@@ -195,6 +194,8 @@
       </div>
 
       <!-- Studio Output & Saved Notes -->
+      <p id="studioStatus" class="generation-status" role="status" aria-live="polite"></p>
+      <button type="button" class="text-button danger hidden" id="studioStopButton" aria-label="Stop Studio generation">Stop Studio generation</button>
       <div class="studio-saved-container">
         <div class="studio-empty-prompt" id="studioEmpty">
           <div class="wand-icon">🪄</div>
@@ -332,6 +333,8 @@
   </dialog>
 
   <div class="toast-stack" id="toasts"></div>
+  <script src="/assets/markdown.js" defer></script>
+  <script src="/assets/stream.js" defer></script>
   <script src="/assets/app.js" defer></script>
 </body>
 </html>

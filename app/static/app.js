@@ -6,7 +6,9 @@ const state = {
   detail: null,
   messages: [],
   generating: false,
-  controller: null,
+  run: null,
+  viewEpoch: 0,
+  selecting: null,
   editing: null,
   poller: null,
   sourceQuery: ''
@@ -35,65 +37,6 @@ async function api(path, options = {}) {
 function toast(message) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = message;
   $('#toasts').append(el); setTimeout(() => el.remove(), 4200);
-}
-
-function escapeHtml(value = '') {
-  return value.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-}
-
-function markdown(value, citations = []) {
-  const inline = text => escapeHtml(text)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\[(\d+)\]/g, (_, n) => citations[Number(n)-1]
-      ? `<button class="citation" data-citation="${Number(n)-1}" title="Open source ${n}">${n}</button>`
-      : `[${n}]`);
-  const output = [];
-  let list = null, paragraph = [], code = [], inCode = false;
-  const closeParagraph = () => { if (paragraph.length) output.push(`<p>${paragraph.join('<br>')}</p>`); paragraph = []; };
-  const closeList = () => { if (list) output.push(`</${list}>`); list = null; };
-  const lines = String(value || '').split('\n');
-  const tableCells = line => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim());
-  const isTableDivider = line => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const rawLine = lines[lineIndex];
-    if (/^\s*```/.test(rawLine)) {
-      closeParagraph(); closeList();
-      if (inCode) { output.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`); code = []; }
-      inCode = !inCode; continue;
-    }
-    if (inCode) { code.push(rawLine); continue; }
-    if (rawLine.includes('|') && lineIndex + 1 < lines.length && isTableDivider(lines[lineIndex + 1])) {
-      closeParagraph(); closeList();
-      const headings = tableCells(rawLine);
-      const rows = [];
-      lineIndex += 2;
-      while (lineIndex < lines.length && lines[lineIndex].trim() && lines[lineIndex].includes('|')) {
-        rows.push(tableCells(lines[lineIndex]));
-        lineIndex++;
-      }
-      lineIndex--;
-      const width = headings.length;
-      const head = `<thead><tr>${headings.map(cell => `<th>${inline(cell)}</th>`).join('')}</tr></thead>`;
-      const body = rows.length ? `<tbody>${rows.map(row => `<tr>${Array.from({length: width}, (_, index) => `<td>${inline(row[index] || '')}</td>`).join('')}</tr>`).join('')}</tbody>` : '';
-      output.push(`<div class="table-wrap"><table>${head}${body}</table></div>`);
-      continue;
-    }
-    const heading = rawLine.match(/^\s*(#{1,3})\s+(.+)$/);
-    const unordered = rawLine.match(/^\s*[-*]\s+(.+)$/);
-    const ordered = rawLine.match(/^\s*\d+[.)]\s+(.+)$/);
-    if (/^\s*(\*{3,}|-{3,}|_{3,})\s*$/.test(rawLine)) { closeParagraph(); closeList(); output.push('<hr>'); }
-    else if (heading) { closeParagraph(); closeList(); const level = heading[1].length; output.push(`<h${level}>${inline(heading[2])}</h${level}>`); }
-    else if (unordered || ordered) {
-      closeParagraph(); const wanted = unordered ? 'ul' : 'ol';
-      if (list !== wanted) { closeList(); output.push(`<${wanted}>`); list = wanted; }
-      output.push(`<li>${inline((unordered || ordered)[1])}</li>`);
-    } else if (!rawLine.trim()) { closeParagraph(); closeList(); }
-    else { closeList(); paragraph.push(inline(rawLine)); }
-  }
-  if (inCode) output.push(`<pre><code>${escapeHtml(code.join('\n'))}</code></pre>`);
-  closeParagraph(); closeList();
-  return output.join('');
 }
 
 function selectedSources() {
@@ -160,33 +103,45 @@ function renderNotebookGrid() {
 }
 
 function showLandingView() {
+  state.viewEpoch++;
   state.current = null;
   state.detail = null;
   $('#landingView').classList.remove('hidden');
   $('#workspace').classList.add('hidden');
   $('#notebookNavTitle').classList.add('hidden');
   $('#landingNavTabs').classList.remove('hidden');
+  renderGenerationStatus();
 }
 
 async function selectNotebook(id) {
+  const viewEpoch = ++state.viewEpoch;
   state.current = id;
-  [state.detail, state.messages] = await Promise.all([api(`/api/notebooks/${id}`), api(`/api/notebooks/${id}/messages`)]);
+  const selection = {id, viewEpoch, promise: Promise.all([api(`/api/notebooks/${id}`), api(`/api/notebooks/${id}/messages`)])};
+  state.selecting = selection;
+  try {
+    const [detail, messages] = await selection.promise;
+    if (state.current !== id || state.viewEpoch !== viewEpoch) return;
+    state.detail = detail; state.messages = messages;
 
-  $('#landingView').classList.add('hidden');
-  $('#workspace').classList.remove('hidden');
-  $('#notebookNavTitle').classList.remove('hidden');
-  $('#landingNavTabs').classList.add('hidden');
+    $('#landingView').classList.add('hidden');
+    $('#workspace').classList.remove('hidden');
+    $('#notebookNavTitle').classList.remove('hidden');
+    $('#landingNavTabs').classList.add('hidden');
 
-  const emoji = getEmojiForNotebook(id);
-  $('#currentTitle').textContent = state.detail.title;
-  $('#bannerTitle').textContent = state.detail.title;
-  $('#bannerEmoji').textContent = emoji;
+    const emoji = getEmojiForNotebook(id);
+    $('#currentTitle').textContent = state.detail.title;
+    $('#bannerTitle').textContent = state.detail.title;
+    $('#bannerEmoji').textContent = emoji;
 
-  renderSources();
-  renderMessages();
-  renderSaved();
-  updateSuggestions();
-  schedulePolling();
+    renderSources();
+    renderMessages();
+    renderSaved();
+    updateSuggestions();
+    schedulePolling();
+    renderGenerationStatus();
+  } finally {
+    if (state.selecting === selection) state.selecting = null;
+  }
 }
 
 function renderSources() {
@@ -221,9 +176,14 @@ function renderSources() {
 function schedulePolling() {
   clearTimeout(state.poller);
   if (!state.detail?.sources.some(s => ['queued','processing'].includes(s.status))) return;
+  const notebookId = state.current, viewEpoch = state.viewEpoch;
   state.poller = setTimeout(async () => {
-    if (!state.current) return;
-    try { state.detail = await api(`/api/notebooks/${state.current}`); renderSources(); renderSaved(); schedulePolling(); }
+    if (state.current !== notebookId || state.viewEpoch !== viewEpoch) return;
+    try {
+      const detail = await api(`/api/notebooks/${notebookId}`);
+      if (state.current !== notebookId || state.viewEpoch !== viewEpoch) return;
+      state.detail = detail; renderSources(); renderSaved(); schedulePolling();
+    }
     catch (_) {}
   }, 1800);
 }
@@ -270,40 +230,61 @@ function updateSuggestions() {
   $('#suggestions').innerHTML = options.map(x => `<button class="suggestion-chip">${escapeHtml(x)}</button>`).join('');
 }
 
-async function streamRequest(path, body, onEvent) {
-  const controller = new AbortController(); state.controller = controller;
-  const response = await fetch(path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal:controller.signal });
-  if (!response.ok) { let data; try { data = await response.json(); } catch (_) {} throw new Error(data?.detail || response.statusText); }
-  const reader = response.body.getReader(), decoder = new TextDecoder(); let buffer = '';
-  while (true) {
-    const {value, done} = await reader.read(); if (done) break;
-    buffer += decoder.decode(value, {stream:true}); const lines = buffer.split('\n'); buffer = lines.pop();
-    for (const line of lines) if (line.trim()) onEvent(JSON.parse(line));
-  }
+function renderGenerationStatus() {
+  const run = state.run, same = run && state.current === run.notebookId;
+  $('#chatStatus').textContent = run?.kind === 'chat' ? (same ? run.status : `Chat running in ${run.title}…`) : '';
+  $('#studioStatus').textContent = run?.kind === 'studio' ? (same ? run.status : `Studio running in ${run.title}…`) : '';
+  $('#sendButton').classList.toggle('hidden', run?.kind === 'chat');
+  $('#stopButton').classList.toggle('hidden', run?.kind !== 'chat');
+  $('#studioStopButton').classList.toggle('hidden', run?.kind !== 'studio');
+  const globalStop = $('#globalStopButton');
+  globalStop.classList.toggle('hidden', !run || state.current !== null);
+  globalStop.setAttribute('aria-label', run ? `Stop generation in ${run.title}` : 'Stop generation');
 }
 
 async function sendQuestion(question) {
   if (!state.current || state.generating || !question.trim()) return;
+  if (state.detail?.id !== state.current) return toast('Notebook is still loading.');
+  const notebookId = state.current, viewEpoch = state.viewEpoch, title = state.detail.title;
   state.generating = true; $('#notebookBanner').classList.add('hidden'); $('#question').value = ''; resizeComposer();
   appendMessage('user', question.trim());
   const answerEl = appendMessage('assistant', '', [], true); let answer = '', citations = [];
-  $('#sendButton').classList.add('hidden'); $('#stopButton').classList.remove('hidden');
+  const controller = new AbortController();
+  const run = {notebookId, title, kind:'chat', status:'Finding evidence and generating an answer…', controller};
+  state.run = run; renderGenerationStatus();
+  const originalView = () => state.current === notebookId && state.viewEpoch === viewEpoch;
   try {
-    await streamRequest(`/api/notebooks/${state.current}/chat`, {question:question.trim(), source_ids:selectedSources()}, event => {
+    await streamRequest(`/api/notebooks/${notebookId}/chat`, {question:question.trim(), source_ids:selectedSources()}, event => {
       if (event.type === 'citations') citations = event.citations;
-      if (event.type === 'delta') { answer += event.text; updateMessage(answerEl, answer, citations, true); }
-      if (event.type === 'error') throw new Error(event.message);
-    });
-    updateMessage(answerEl, answer, citations, false);
-    const actions = document.createElement('div'); actions.className = 'message-actions';
-    actions.innerHTML = `<button class="text-button copy-answer">Copy</button><button class="text-button save-answer">Save as note</button>`;
-    answerEl.lastElementChild.append(actions);
-    state.messages = await api(`/api/notebooks/${state.current}/messages`);
+      if (event.type === 'delta') { answer += event.text; if (originalView()) updateMessage(answerEl, answer, citations, true); }
+      if (event.type === 'status' && typeof event.message === 'string') { run.status = event.message; renderGenerationStatus(); }
+    }, controller.signal);
+    if (originalView()) {
+      updateMessage(answerEl, answer, citations, false);
+      const actions = document.createElement('div'); actions.className = 'message-actions';
+      actions.innerHTML = `<button class="text-button copy-answer">Copy</button><button class="text-button save-answer">Save as note</button>`;
+      answerEl.lastElementChild.append(actions);
+    }
+    // A return to this notebook replaces the detached live message with persisted history.
+    if (state.current === notebookId) {
+      try {
+        const refreshEpoch = state.viewEpoch;
+        const selection = state.selecting;
+        if (selection?.id === notebookId && selection.viewEpoch === refreshEpoch) await selection.promise;
+        if (state.current !== notebookId || state.viewEpoch !== refreshEpoch) return;
+        const messages = await api(`/api/notebooks/${notebookId}/messages`);
+        if (state.current === notebookId && state.viewEpoch === refreshEpoch) {
+          state.messages = messages;
+          if (!originalView()) renderMessages();
+        }
+      } catch (error) { toast(`Answer completed in ${title}; refresh to view history: ${error.message}`); }
+    }
   } catch (error) {
-    if (error.name === 'AbortError') updateMessage(answerEl, answer || '_Generation stopped._', citations, false);
-    else { updateMessage(answerEl, answer || `Error: ${error.message}`, citations, false); toast(error.message); }
+    if (originalView()) updateMessage(answerEl, `${answer}\n\n_${error.name === 'AbortError' ? 'Generation interrupted; refresh to check saved output.' : `Generation failed: ${error.message}`}_`, citations, false);
+    if (error.name === 'AbortError') toast(`Generation interrupted in ${title}; refresh to check saved output.`);
+    else toast(`${title}: ${error.message}`);
   } finally {
-    state.generating = false; state.controller = null; $('#sendButton').classList.remove('hidden'); $('#stopButton').classList.add('hidden');
+    if (state.run === run) { state.generating = false; state.run = null; renderGenerationStatus(); }
   }
 }
 
@@ -375,20 +356,30 @@ function renderSaved() {
 
 async function generateArtifact(kind, button) {
   if (state.generating) return toast('Finish current generation first.');
-  button.classList.add('loading'); state.generating = true; let content = '', citations = [];
-  const titleMap = {summary:'Summary', faq:'FAQ', guide:'Study Guide'};
-  const title = titleMap[kind] || 'Generated Artifact';
-  state.editing = {type:'artifact-live', id:null, title, content:''};
-  $('#editorTitle').value = title; $('#editorContent').value = ''; $('#deleteSaved').classList.add('hidden'); $('#editorDialog').showModal();
+  if (!state.current) return;
+  if (state.detail?.id !== state.current) return toast('Notebook is still loading.');
+  const notebookId = state.current, title = state.detail.title;
+  button.classList.add('loading'); state.generating = true;
+  const controller = new AbortController();
+  const run = {notebookId, title, kind:'studio', status:'Preparing source summaries, then generating Studio output…', controller};
+  state.run = run; renderGenerationStatus();
   try {
-    await streamRequest(`/api/notebooks/${state.current}/artifacts`, {kind, source_ids:selectedSources()}, event => {
-      if (event.type === 'citations') citations = event.citations;
-      if (event.type === 'delta') { content += event.text; $('#editorContent').value = content; }
-      if (event.type === 'error') throw new Error(event.message);
-    });
-    $('#editorDialog').close('cancel'); state.detail = await api(`/api/notebooks/${state.current}`); renderSaved(); toast('Saved to Studio.');
-  } catch (error) { if (error.name !== 'AbortError') toast(error.message); }
-  finally { state.generating = false; state.controller = null; button.classList.remove('loading'); }
+    await streamRequest(`/api/notebooks/${notebookId}/artifacts`, {kind, source_ids:selectedSources()}, event => {
+      if (event.type === 'status' && typeof event.message === 'string') { run.status = `${event.message} Generating source summaries, then final output…`; renderGenerationStatus(); }
+    }, controller.signal);
+    toast(`Saved to Studio in ${title}.`);
+    if (state.current === notebookId) {
+      try {
+        const viewEpoch = state.viewEpoch;
+        const selection = state.selecting;
+        if (selection?.id === notebookId && selection.viewEpoch === viewEpoch) await selection.promise;
+        if (state.current !== notebookId || state.viewEpoch !== viewEpoch) return;
+        const detail = await api(`/api/notebooks/${notebookId}`);
+        if (state.current === notebookId && state.viewEpoch === viewEpoch) { state.detail = detail; renderSaved(); }
+      } catch (error) { toast(`Refresh ${title} to view the saved artifact: ${error.message}`); }
+    }
+  } catch (error) { toast(error.name === 'AbortError' ? `Generation interrupted in ${title}; refresh to check saved output.` : `${title}: ${error.message}`); }
+  finally { if (state.run === run) { state.generating = false; state.run = null; renderGenerationStatus(); } button.classList.remove('loading'); }
 }
 
 function openSaved(type, id) {
@@ -561,7 +552,9 @@ $('#fileInput').onchange = event => { uploadFiles([...event.target.files]); even
 $('#chatForm').onsubmit = event => { event.preventDefault(); sendQuestion($('#question').value); };
 $('#question').oninput = resizeComposer;
 $('#question').onkeydown = event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); sendQuestion(event.target.value); } };
-$('#stopButton').onclick = () => state.controller?.abort();
+$('#stopButton').onclick = () => { if (state.run?.kind === 'chat') state.run.controller.abort(); };
+$('#studioStopButton').onclick = () => { if (state.run?.kind === 'studio') state.run.controller.abort(); };
+$('#globalStopButton').onclick = () => state.run?.controller.abort();
 $('#clearChat').onclick = async () => {
   const confirmClear = await confirmModal({title:'Clear Chat', message:'Clear all message history in this notebook?', submit:'Clear'});
   if (confirmClear) {
@@ -577,7 +570,7 @@ $('#newNote').onclick = async () => {
 };
 
 $('#editorForm').addEventListener('submit', async event => {
-  event.preventDefault(); if (state.editing?.type === 'artifact-live') return;
+  event.preventDefault();
   try { await saveCurrentEditor(); $('#editorDialog').close('default'); } catch(error){toast(error.message);}
 });
 

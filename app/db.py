@@ -73,6 +73,13 @@ def init_db():
           kind TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL DEFAULT '', citations TEXT NOT NULL DEFAULT '[]',
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS generation_runs (
+          id TEXT PRIMARY KEY, notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,
+          retrieval_ms INTEGER, generation_ms INTEGER, chunk_ids TEXT NOT NULL DEFAULT '[]',
+          coverage TEXT NOT NULL DEFAULT '{}', metrics TEXT NOT NULL DEFAULT '{}', vram_bytes INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_runs_notebook ON generation_runs(notebook_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_sources_notebook ON sources(notebook_id);
         CREATE INDEX IF NOT EXISTS idx_chunks_notebook ON chunks(notebook_id);
         CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
@@ -101,3 +108,21 @@ def json_value(value, fallback=None):
         return json.loads(value)
     except (TypeError, json.JSONDecodeError):
         return fallback
+
+
+def touch_notebook(conn, notebook_id, conversation=False):
+    timestamp = now()
+    conn.execute("UPDATE notebooks SET updated_at=? WHERE id=?", (timestamp, notebook_id))
+    if conversation:
+        conn.execute("UPDATE conversations SET updated_at=? WHERE notebook_id=?", (timestamp, notebook_id))
+
+
+def record_run(notebook_id, kind, status, retrieval_ms=None, generation_ms=None,
+               chunk_ids=(), coverage=None, metrics=None, vram_bytes=None):
+    with connection() as conn:
+        conn.execute("INSERT INTO generation_runs VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                     (uid(), notebook_id, kind, status, now(), retrieval_ms, generation_ms,
+                      json.dumps(chunk_ids), json.dumps(coverage or {}), json.dumps(metrics or {}), vram_bytes))
+        conn.execute("DELETE FROM generation_runs WHERE notebook_id=? AND id NOT IN "
+                     "(SELECT id FROM generation_runs WHERE notebook_id=? ORDER BY created_at DESC,id DESC LIMIT 100)",
+                     (notebook_id, notebook_id))

@@ -6,10 +6,17 @@ services:
     container_name: gemma-notebook
     network_mode: host
     environment:
-      OLLAMA_URL: http://127.0.0.1:11434
-      GENERATION_MODEL: gemma4-e4b-64k:latest
-      EMBEDDING_MODEL: nomic-embed-text:latest
+      OLLAMA_URL: ${OLLAMA_URL:-http://127.0.0.1:11434}
+      GENERATION_MODEL: ${GENERATION_MODEL:-gemma4:e4b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text:latest}
+      RETRIEVAL_MIN_SIMILARITY: ${RETRIEVAL_MIN_SIMILARITY:-0.35}
       DATA_DIR: /app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json, urllib.request; h=json.load(urllib.request.urlopen('http://127.0.0.1:8787/api/health', timeout=3)); assert h['app']=='ok' and h['ollama'] and h['generation_ready'] and h['embedding_ready']"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
     volumes:
       - ./data:/app/data:Z
       - ./app:/app/app:Z
