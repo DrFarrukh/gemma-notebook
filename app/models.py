@@ -40,6 +40,7 @@ class Provider(Protocol):
     async def health(self) -> dict: ...
     async def vram_bytes(self) -> int | None: ...
     async def list_models(self) -> list[str]: ...
+    async def loaded_info(self) -> dict: ...
 
 
 def validate_vectors(vectors, count, dimension=None):
@@ -88,9 +89,11 @@ class OllamaProvider:
 
     async def health(self):
         names = await self.list_models()
+        loaded = await self.loaded_info()
         return {"app": "ok", "ollama": True, "error": None,
                 "generation_model": GENERATION_MODEL, "embedding_model": EMBEDDING_MODEL,
-                "generation_ready": GENERATION_MODEL in names, "embedding_ready": EMBEDDING_MODEL in names}
+                "generation_ready": GENERATION_MODEL in names, "embedding_ready": EMBEDDING_MODEL in names,
+                **loaded}
 
     async def list_models(self):
         async with httpx.AsyncClient(timeout=3) as client:
@@ -108,6 +111,24 @@ class OllamaProvider:
                 return sizes[0] if sizes else None
         except Exception:
             return None
+
+    async def loaded_info(self):
+        """Whether GENERATION_MODEL is currently resident, and its CPU/GPU memory split."""
+        try:
+            async with httpx.AsyncClient(timeout=3) as client:
+                response = await client.get(f"{OLLAMA_URL}/api/ps")
+                response.raise_for_status()
+                for item in response.json().get("models", []):
+                    if item.get("name") != GENERATION_MODEL:
+                        continue
+                    size = item.get("size") or 0
+                    size_vram = item.get("size_vram") or 0
+                    gpu_percent = round(size_vram / size * 100) if size else None
+                    cpu_percent = 100 - gpu_percent if gpu_percent is not None else None
+                    return {"model_loaded": True, "gpu_percent": gpu_percent, "cpu_percent": cpu_percent}
+                return {"model_loaded": False, "gpu_percent": None, "cpu_percent": None}
+        except Exception:
+            return {"model_loaded": False, "gpu_percent": None, "cpu_percent": None}
 
 
 provider: Provider = OllamaProvider()

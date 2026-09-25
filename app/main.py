@@ -75,7 +75,8 @@ async def health():
     except Exception:
         result = {"app": "ok", "ollama": False, "error": "Local model unavailable",
                    "generation_model": models.GENERATION_MODEL, "embedding_model": models.EMBEDDING_MODEL,
-                   "generation_ready": False, "embedding_ready": False}
+                   "generation_ready": False, "embedding_ready": False,
+                   "model_loaded": False, "gpu_percent": None, "cpu_percent": None}
     result["num_ctx"] = models.NUM_CTX
     return result
 

@@ -44,18 +44,33 @@ function selectedSources() {
   return (state.detail?.sources || []).filter(s => s.enabled && s.status === 'ready').map(s => s.id);
 }
 
+function formatUsageSplit(gpuPercent, cpuPercent) {
+  if (gpuPercent == null || cpuPercent == null) return '';
+  if (gpuPercent >= 100) return '100% GPU';
+  if (gpuPercent <= 0) return '100% CPU';
+  return `${cpuPercent}% CPU / ${gpuPercent}% GPU`;
+}
+
 async function loadHealth() {
   try {
     const health = await api('/api/health');
     state.numCtx = health.num_ctx || null;
     const el = $('#modelStatus');
     const label = el.querySelector('.status-label');
-    if (health.ollama && health.generation_ready && health.embedding_ready) {
-      el.className = 'status good';
-       if (label) label.textContent = `${health.generation_model} Ready`;
+    if (!health.ollama) {
+      el.className = 'status bad'; el.title = 'Ollama offline';
+      if (label) label.textContent = 'Ollama offline';
+    } else if (!health.generation_ready) {
+      el.className = 'status bad'; el.title = 'Generation model not pulled in Ollama';
+      if (label) label.textContent = 'Model missing';
+    } else if (!health.model_loaded) {
+      el.className = 'status bad'; el.title = `${health.generation_model} not loaded in VRAM`;
+      if (label) label.textContent = 'Not loaded';
     } else {
-      el.className = 'status bad';
-      if (label) label.textContent = health.ollama ? 'Model missing' : 'Ollama offline';
+      el.className = 'status good';
+      const usage = formatUsageSplit(health.gpu_percent, health.cpu_percent);
+      el.title = `${health.generation_model} loaded${usage ? ' · ' + usage : ''}`;
+      if (label) label.textContent = usage || health.generation_model;
     }
   } catch (error) { $('#modelStatus').className = 'status bad'; }
 }
@@ -80,9 +95,8 @@ async function changeSettings(patch) {
   try {
     const updated = await api('/api/settings', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)});
     state.numCtx = updated.num_ctx;
-    const label = $('#modelStatus .status-label');
-    if (label && updated.generation_model) label.textContent = `${updated.generation_model} Ready`;
     const meter = $('#contextMeter'); if (meter) meter.classList.add('hidden');
+    await loadHealth();
     toast('Model settings updated.');
   } catch (error) { toast(`Could not update settings: ${error.message}`); loadSettings(); }
 }
