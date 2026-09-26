@@ -6,8 +6,8 @@ const {markdown, escapeHtml} = require('../app/static/markdown.js');
 
 test('chat page requests fresh UI assets and tolerates a cached previous script', () => {
   const html = readFileSync(require.resolve('../app/static/index.html'), 'utf8');
-  assert.match(html, /\/assets\/app\.js\?v=thinking-levels-20260926/);
-  assert.match(html, /\/assets\/style\.css\?v=thinking-levels-20260926/);
+  assert.match(html, /\/assets\/app\.js\?v=source-status-20260927/);
+  assert.match(html, /\/assets\/style\.css\?v=source-status-20260927/);
   assert.match(html, /id="thinkingSelect"/);
   assert.match(html, /id="temperatureSelect"/);
   assert.match(html, /id="chatStatus" class="hidden"/);
@@ -88,6 +88,25 @@ test('generation controls load context, thinking, and temperature settings', asy
   assert.match(ui.node('#ctxSelect').innerHTML, /value="16384" selected/);
   assert.match(ui.node('#thinkingSelect').innerHTML, /value="auto" selected>Think auto/);
   assert.match(ui.node('#temperatureSelect').innerHTML, /value="0.2" selected>Temp 0.2/);
+});
+
+test('source list clearly shows queued, processing, completed, and failed states', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  ui.state.detail.sources = [
+    {id:'queued', name:'queued.pdf', status:'queued', enabled:1},
+    {id:'processing', name:'processing.pdf', status:'processing', enabled:1},
+    {id:'ready', name:'ready.pdf', status:'ready', enabled:1, page_count:8},
+    {id:'error', name:'error.pdf', status:'error', enabled:0, error:'OCR failed'}
+  ];
+
+  ui.context.renderSources();
+  const list = ui.node('#sourceList').innerHTML;
+  assert.match(list, /Queued for processing/);
+  assert.match(list, /Processing…/);
+  assert.match(list, /Processed · 8 pages/);
+  assert.match(list, /Not processed · Retry available/);
+  assert.match(list, /aria-live="polite"/);
 });
 
 test('request meter labels the latest model request rather than chat memory', async () => {

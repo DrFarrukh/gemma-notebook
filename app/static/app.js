@@ -217,7 +217,7 @@ function renderSources() {
       <svg class="pdf-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
       <span class="source-title-wrap">
         <button class="source-title" data-source-details="${s.id}" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</button>
-        <small class="source-state ${s.status}" title="${escapeHtml(s.error || s.status)}">${s.status === 'ready' ? (s.page_count ? `${s.page_count} pages` : `${Math.round(s.char_count/1000)}k chars`) : s.status === 'error' ? 'Failed — retry available' : s.status}</small>
+        <small class="source-state ${s.status}" role="status" aria-live="polite" title="${escapeHtml(s.error || sourceStatusLabel(s))}">${escapeHtml(sourceStatusLabel(s))}</small>
       </span>
       ${s.status === 'error' ? `<button class="source-retry-btn" data-source-retry="${s.id}" title="Retry processing">↻</button>` : ''}
       <button class="source-action-btn" data-source-delete="${s.id}" title="Delete source">
@@ -225,6 +225,24 @@ function renderSources() {
       </button>
       <input type="checkbox" class="source-checkbox" data-toggle-source="${s.id}" ${s.enabled ? 'checked' : ''} ${s.status !== 'ready' ? 'disabled' : ''} title="Toggle source active in context">
     </div>`).join('') || '<div class="studio-empty-prompt" style="padding:20px 0;"><p class="empty-desc">No matching sources.</p></div>';
+}
+
+function sourceStatusLabel(source) {
+  if (source.status === 'ready') {
+    const detail = source.page_count ? `${source.page_count} pages` : `${Math.round((source.char_count || 0) / 1000)}k chars`;
+    return `Processed · ${detail}`;
+  }
+  if (source.status === 'queued') return 'Queued for processing';
+  if (source.status === 'processing') return 'Processing…';
+  if (source.status === 'error') return 'Not processed · Retry available';
+  return 'Not processed';
+}
+
+function showAddedSource(source, notebookId) {
+  if (state.current !== notebookId || !state.detail) return;
+  state.detail.sources = [source, ...(state.detail.sources || []).filter(item => item.id !== source.id)];
+  renderSources();
+  schedulePolling();
 }
 
 function schedulePolling() {
@@ -455,20 +473,33 @@ async function createNotebook() {
 
 async function pasteSource() {
   const result = await promptModal({title:'Copied text', nameLabel:'Source Name', name:'Pasted text', textLabel:'Source Text', submit:'Add source'}); if (!result?.name || !result.text.trim()) return;
-  try { await api(`/api/notebooks/${state.current}/sources/paste`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(result)}); state.detail = await api(`/api/notebooks/${state.current}`); renderSources(); schedulePolling(); toast('Source added.'); }
+  const notebookId = state.current;
+  try {
+    const source = await api(`/api/notebooks/${notebookId}/sources/paste`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(result)});
+    showAddedSource(source, notebookId);
+    if (state.current === notebookId) {
+      state.detail = await api(`/api/notebooks/${notebookId}`);
+      renderSources(); schedulePolling();
+    }
+    toast('Source added.');
+  }
   catch (error) { toast(error.message); }
 }
 
 async function uploadFiles(files) {
+  const notebookId = state.current;
   for (const file of files) {
     const form = new FormData(); form.append('file', file);
     try {
-      await api(`/api/notebooks/${state.current}/sources`, {method:'POST', body:form});
+      const source = await api(`/api/notebooks/${notebookId}/sources`, {method:'POST', body:form});
+      showAddedSource(source, notebookId);
       toast(`Uploaded ${file.name}`);
     }
     catch (error) { toast(`${file.name}: ${error.message}`); }
   }
-  state.detail = await api(`/api/notebooks/${state.current}`); renderSources(); schedulePolling();
+  if (state.current === notebookId) {
+    state.detail = await api(`/api/notebooks/${notebookId}`); renderSources(); schedulePolling();
+  }
 }
 
 function renderSaved() {
