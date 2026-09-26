@@ -18,7 +18,7 @@ CHUNK_OVERLAP = 350
 CHUNK_HARD_CAP = 4000
 LEGACY_CHUNK_SIZE = 1800
 LEGACY_CHUNK_OVERLAP = 250
-PDF_TABLE_CAPTION = re.compile(r"(?im)^\s*(TABLE\s+[IVXLCDM0-9]+)\b")
+PDF_TABLE_CAPTION = re.compile(r"(?im)^\s*(?:#{1,6}\s*)?(TABLE\s+[IVXLCDM0-9]+)\b")
 PDF_TABLE_WORD_LIMIT = 12
 
 
@@ -110,7 +110,7 @@ def _recover_missing_table_text(pdf_page, markdown):
                      if block[1] >= caption_rect.y1 - 1 and block[3] > caption_rect.y1 + 3
                      and block[1] > caption_rect.y0 + 3
                      and block[1] > caption_rect.y1 + 24
-                     and same_column(block)
+                     and (same_column(block) or block[2] - block[0] >= page_width * 0.75)
                      and not PDF_TABLE_CAPTION.search(str(block[4]))]
         next_caption = []
         for other in captions:

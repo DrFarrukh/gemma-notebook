@@ -117,14 +117,19 @@ def test_sparse_captained_table_region_recovers_and_normalizes_ocr(monkeypatch):
         def get_pixmap(self, **kwargs):
             assert kwargs["dpi"] == 220
             assert kwargs["alpha"] is False
+            assert kwargs["clip"].y1 == 248
             return Pixmap()
 
-    recovered = documents._recover_missing_table_text(Page(), "TABLE III\nCOMPARISON")
+    recovered = documents._recover_missing_table_text(Page(), "### TABLE III\nCOMPARISON")
 
     assert len(recovered) == 1
     assert recovered[0].startswith("### OCR recovered TABLE III")
     assert "207,275" in recovered[0]
     assert "86,119" in recovered[0]
+
+
+def test_table_caption_detection_accepts_markdown_headings():
+    assert documents._table_captions("### TABLE VII\nCOMPARISON WITH PRETRAINED MODELS") == ["TABLE VII"]
 
 
 def test_pdf_markdown_heading_sections_change_deterministically():
