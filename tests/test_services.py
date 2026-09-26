@@ -68,6 +68,65 @@ def test_pdf_extraction_returns_page_associated_markdown(tmp_path, monkeypatch):
     assert [chunk["page"] for chunk in services.split_pages(pages, preserve_sections=True)] == [2, 3]
 
 
+def test_sparse_captained_table_region_recovers_and_normalizes_ocr(monkeypatch):
+    class Pixmap:
+        def pdfocr_tobytes(self, language):
+            assert language == "eng"
+            return b"recognized-pdf"
+
+    class OCRPage:
+        def get_text(self):
+            return "Method Parameters\nCNN 207 275\nE2CNN 86 119"
+
+    class OCRDocument:
+        def __getitem__(self, index):
+            assert index == 0
+            return OCRPage()
+
+        def close(self):
+            pass
+
+    monkeypatch.setitem(sys.modules, "pymupdf", types.SimpleNamespace(
+        open=lambda **kwargs: OCRDocument()))
+
+    class Rect:
+        def __init__(self, x0, y0, x1, y1):
+            self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
+
+        @property
+        def height(self):
+            return self.y1 - self.y0
+
+        @property
+        def width(self):
+            return self.x1 - self.x0
+
+    class Page:
+        rect = Rect(0, 0, 600, 800)
+
+        def get_text(self, mode="text", clip=None):
+            if mode == "blocks":
+                return [(0, 250, 600, 310, "Paragraph after table", 0, 0)]
+            if mode == "words":
+                return []
+            return "TABLE III"
+
+        def search_for(self, text):
+            return [Rect(250, 20, 350, 35)] if text == "TABLE III" else []
+
+        def get_pixmap(self, **kwargs):
+            assert kwargs["dpi"] == 220
+            assert kwargs["alpha"] is False
+            return Pixmap()
+
+    recovered = documents._recover_missing_table_text(Page(), "TABLE III\nCOMPARISON")
+
+    assert len(recovered) == 1
+    assert recovered[0].startswith("### OCR recovered TABLE III")
+    assert "207,275" in recovered[0]
+    assert "86,119" in recovered[0]
+
+
 def test_pdf_markdown_heading_sections_change_deterministically():
     chunks = services.split_pages([
         {"page": 4, "text": "## II. Dataset\n\nDataset body.\n\n### A. Longitudinal Dataset\n\nStudy body."},

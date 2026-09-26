@@ -18,6 +18,8 @@ CHUNK_OVERLAP = 350
 CHUNK_HARD_CAP = 4000
 LEGACY_CHUNK_SIZE = 1800
 LEGACY_CHUNK_OVERLAP = 250
+PDF_TABLE_CAPTION = re.compile(r"(?im)^\s*(TABLE\s+[IVXLCDM0-9]+)\b")
+PDF_TABLE_WORD_LIMIT = 12
 
 
 def clean_text(text):
@@ -67,6 +69,89 @@ def normalize_pdf_headings(text):
     return "\n".join(output)
 
 
+def _table_captions(text):
+    """Return stable table caption labels in page order."""
+    return list(dict.fromkeys(match.group(1).upper().replace("  ", " ").strip()
+                              for match in PDF_TABLE_CAPTION.finditer(text)))
+
+
+def _normalize_ocr_numbers(text):
+    # Tables commonly space-group thousands in the PDF text layer. Normalize
+    # OCR's equivalent representation so exact numeric searches remain useful.
+    return re.sub(r"(?<!\d)(\d{1,3})[ \u00a0](\d{3})(?!\d)", r"\1,\2", text)
+
+
+def _recover_missing_table_text(pdf_page, markdown):
+    """OCR only sparse regions below table captions omitted by Markdown conversion."""
+    captions = _table_captions(pdf_page.get_text())
+    if not captions:
+        return []
+    recovered = []
+    page_width = pdf_page.rect.width
+    page_height = pdf_page.rect.height
+    blocks = sorted(pdf_page.get_text("blocks"), key=lambda block: (block[1], block[0]))
+    for caption in captions:
+        if caption not in markdown.upper():
+            continue
+        locations = pdf_page.search_for(caption)
+        if not locations:
+            continue
+        caption_rect = locations[0]
+        caption_blocks = [block for block in blocks
+                          if caption in str(block[4]).upper()
+                          and block[0] <= caption_rect.x1 and block[2] >= caption_rect.x0
+                          and block[1] <= caption_rect.y1 and block[3] >= caption_rect.y0]
+        caption_bottom = max((block[3] for block in caption_blocks), default=caption_rect.y1)
+        column_midpoint = page_width / 2
+        caption_center = (caption_rect.x0 + caption_rect.x1) / 2
+        same_column = lambda block: (block[0] < column_midpoint if caption_center < column_midpoint
+                                     else block[0] >= column_midpoint)
+        following = [block for block in blocks
+                     if block[1] >= caption_rect.y1 - 1 and block[3] > caption_rect.y1 + 3
+                     and block[1] > caption_rect.y0 + 3
+                     and block[1] > caption_rect.y1 + 24
+                     and same_column(block)
+                     and not PDF_TABLE_CAPTION.search(str(block[4]))]
+        next_caption = []
+        for other in captions:
+            if other == caption:
+                continue
+            next_caption.extend(pdf_page.search_for(other))
+        lower_bounds = [block[1] for block in following]
+        lower_bounds.extend(rect.y0 for rect in next_caption if rect.y0 > caption_rect.y1)
+        lower = min(lower_bounds, default=page_height)
+        # The text layer is already adequate for ordinary tables. OCR only the
+        # caption-to-next-text gap when it contains at most a few stray words.
+        if abs(caption_center - column_midpoint) <= 8:
+            clip_left, clip_right = 0, page_width
+        elif caption_center < column_midpoint:
+            clip_left, clip_right = 0, column_midpoint
+        else:
+            clip_left, clip_right = column_midpoint, page_width
+        clip = pdf_page.rect.__class__(clip_left, caption_bottom + 2, clip_right,
+                                       min(page_height, lower - 2))
+        if clip.height < 18:
+            continue
+        words = pdf_page.get_text("words", clip=clip)
+        if len(words) > PDF_TABLE_WORD_LIMIT:
+            continue
+        try:
+            import pymupdf
+            pixmap = pdf_page.get_pixmap(dpi=220, clip=clip, alpha=False)
+            recognized = pymupdf.open(stream=pixmap.pdfocr_tobytes(language="eng"), filetype="pdf")
+            try:
+                table_text = _normalize_ocr_numbers(recognized[0].get_text()).strip()
+            finally:
+                recognized.close()
+        except (RuntimeError, OSError, ValueError):
+            # Keep otherwise-readable PDF pages usable when local Tesseract is
+            # unavailable or a particular clip cannot be recognized.
+            continue
+        if table_text and len(re.findall(r"\w+", table_text)) > len(words):
+            recovered.append(f"### OCR recovered {caption}\n\n{table_text}")
+    return recovered
+
+
 def extract(path: Path, kind: str):
     suffix = path.suffix.lower()
     pages = []
@@ -93,7 +178,27 @@ def extract(path: Path, kind: str):
                 raise ValueError("PDF Markdown extraction returned invalid page data") from exc
             if page_number < 1 or not isinstance(markdown, str):
                 raise ValueError("PDF Markdown extraction returned invalid page data")
-            pages.append({"page": page_number, "text": normalize_pdf_headings(clean_text(markdown))})
+            pages.append({"page": page_number,
+                          "text": normalize_pdf_headings(_normalize_ocr_numbers(clean_text(markdown)))})
+        try:
+            import pymupdf
+        except ImportError:
+            pymupdf = None
+        if pymupdf is not None:
+            try:
+                with pymupdf.open(str(path)) as pdf_document:
+                    for page in pages:
+                        if not _table_captions(page["text"]):
+                            continue
+                        if page["page"] <= pdf_document.page_count:
+                            recovered = _recover_missing_table_text(pdf_document[page["page"] - 1], page["text"])
+                            if recovered:
+                                page["text"] = f"{page['text']}\n\n" + "\n\n".join(recovered)
+            except (OSError, RuntimeError, ValueError, pymupdf.FileDataError):
+                # PyMuPDF4LLM normally brings PyMuPDF with it; OCR remains an
+                # optional recovery layer if the extra PDF reader or Tesseract
+                # cannot open a page that the primary converter handled.
+                pass
         total = sum(len(p["text"]) for p in pages)
         scanned = bool(pages and total < max(80, len(pages) * 30))
     elif suffix == ".docx":

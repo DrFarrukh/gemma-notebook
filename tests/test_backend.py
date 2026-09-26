@@ -484,7 +484,7 @@ def test_exact_two_paper_prompt_reaches_two_maps_and_one_synthesis(env, monkeypa
     coverage = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]
     assert coverage["retrieval_mode"] == "exhaustive"
     assert coverage["eligible_sources"] == coverage["represented_sources"] == 2
-    assert coverage["exhaustive_chunks_per_source_limit"] == 5
+    assert coverage["exhaustive_chunks_per_source_limit"] == 12
     assert coverage["exhaustive_source_evidence_budget_chars"] == 12_000
     assert coverage["map_evidence_budget_chars"] == 12_000
     assert coverage["exhaustive_map_thinking"] is False
@@ -598,7 +598,7 @@ def test_exhaustive_retrieval_is_bounded_and_keeps_empty_source_record(env):
     empty, _ = add_source(nid, "irrelevant", vector=(-1, 0))
     groups = retrieval.retrieve_by_source(nid, "Compare every paper", source_ids=[sid, empty])
     assert [source["id"] for source, _ in groups] == [sid, empty]
-    assert len(groups[0][1]) == 5
+    assert len(groups[0][1]) == 6
     assert groups[1][1] == []
     assert len(retrieval.evidence_text(groups[0][1])) <= 12_000
 
@@ -864,16 +864,16 @@ def test_exhaustive_adaptive_budget_section_diversity_and_scoping(env, monkeypat
     monkeypatch.setattr(retrieval, "_rank_query", ordered_rank)
     diagnostics = {}
     groups = retrieval.retrieve_by_source(nid, "evidence", [source_a, source_b], diagnostics=diagnostics)
-    assert retrieval.exhaustive_budget(2) == (5, 12_000)
+    assert retrieval.exhaustive_budget(2) == (12, 12_000)
     for source, chunks in groups:
         expected = ids_a if source["id"] == source_a else ids_b
         selected = [chunk["id"] for chunk in chunks]
-        assert len(selected) == 5
+        assert len(selected) == 6
         assert set(selected) <= set(expected)
         sections = [chunk["section"] for chunk in chunks if chunk["section"] not in (None, "unknown")]
         assert len(set(sections)) >= (3 if source["id"] == source_a else 4)
         assert sum(len(chunk["text"]) for chunk in chunks) < 12_000
-    assert diagnostics["chunks_per_source_selected"] == {source_a: 5, source_b: 5}
+    assert diagnostics["chunks_per_source_selected"] == {source_a: 6, source_b: 6}
     assert diagnostics["distinct_sections_per_source"] == {source_a: 3, source_b: 4}
     assert diagnostics["evidence_chars_per_source"][source_a] < 12_000
     assert retrieval.exhaustive_budget(4)[1] < retrieval.exhaustive_budget(2)[1]

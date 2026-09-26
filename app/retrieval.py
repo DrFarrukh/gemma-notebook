@@ -334,13 +334,14 @@ def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questio
 
 
 def exhaustive_budget(source_count):
+    """Return per-source hard chunk and character limits for complete coverage."""
     if source_count <= 2:
-        return 5, 12_000
+        return 12, 12_000
     if source_count <= 5:
-        return 4, 9_000
+        return 9, 9_000
     if source_count <= 10:
-        return 3, 6_000
-    return 2, 4_800
+        return 6, 6_000
+    return 4, 4_800
 
 
 def _section_key(item):
@@ -352,7 +353,7 @@ def _section_key(item):
 
 def retrieve_by_source(notebook_id, query, source_ids=None, prior_user_questions=(),
                        chunks_per_source=None, source_budget=None, max_sources=None, diagnostics=None):
-    """One hybrid ranking pass, then bounded non-overlapping evidence per eligible source."""
+    """One hybrid ranking pass, then fill each source's bounded evidence budget."""
     sources = scoped_sources(notebook_id, source_ids)
     if not sources:
         return []
@@ -376,6 +377,8 @@ def retrieve_by_source(notebook_id, query, source_ids=None, prior_user_questions
         ranked = grouped[source["id"]]
         selected, seen_sections = [], set()
         # First take the best eligible chunk from each named section in rank order.
+        # Then continue through the ranking until the character or chunk ceiling
+        # is reached, preserving exhaustive coverage within those hard bounds.
         for item in ranked:
             section = _section_key(item)
             if section is None or section in seen_sections:
