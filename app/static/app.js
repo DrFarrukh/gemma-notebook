@@ -259,9 +259,11 @@ function appendMessage(role, content, citations = [], streaming = false) {
   return el;
 }
 
-function updateMessage(el, content, citations, streaming) {
+function updateMessage(el, content, citations, streaming, status = '') {
   el._content = content; el._citations = citations;
-  const body = el.querySelector('.message-body'); body.innerHTML = markdown(content, citations); body.classList.toggle('typing', streaming);
+  const body = el.querySelector('.message-body');
+  body.innerHTML = (status ? `<span class="assistant-progress" role="status" aria-live="polite">${escapeHtml(status)}</span>` : '') + markdown(content, citations);
+  body.classList.toggle('typing', streaming);
   $('#messages').scrollTop = $('#messages').scrollHeight;
 }
 
@@ -291,7 +293,9 @@ function updateContextMeter(promptTokens, evalTokens) {
 
 function renderGenerationStatus() {
   const run = state.run, same = run && state.current === run.notebookId;
-  $('#chatStatus').textContent = run?.kind === 'chat' ? (same ? run.status : `Chat running in ${run.title}…`) : '';
+  if (run?.kind === 'chat' && same && !run.hasOutput && run.answerEl) {
+    updateMessage(run.answerEl, '', run.citations || [], true, run.status);
+  }
   $('#studioStatus').textContent = run?.kind === 'studio' ? (same ? run.status : `Studio running in ${run.title}…`) : '';
   $('#sendButton').classList.toggle('hidden', run?.kind === 'chat');
   $('#stopButton').classList.toggle('hidden', run?.kind !== 'chat');
@@ -301,6 +305,22 @@ function renderGenerationStatus() {
   globalStop.setAttribute('aria-label', run ? `Stop generation in ${run.title}` : 'Stop generation');
 }
 
+function responseMetrics(metrics, wallMs, firstTokenMs) {
+  const parts = [];
+  if (Number.isInteger(metrics?.eval_count) && metrics.eval_count >= 0) {
+    parts.push(`${metrics.eval_count} output tokens`);
+    if (Number.isInteger(metrics.eval_duration) && metrics.eval_duration > 0) {
+      parts.push(`${(metrics.eval_count / (metrics.eval_duration / 1e9)).toFixed(1)} tokens/s`);
+    }
+  }
+  if (Number.isInteger(metrics?.total_duration) && metrics.total_duration >= 0) {
+    parts.push(`Model ${(metrics.total_duration / 1e9).toFixed(1)}s`);
+  }
+  if (firstTokenMs != null) parts.push(`Before first token ${(firstTokenMs / 1000).toFixed(1)}s`);
+  parts.push(`Wall ${(wallMs / 1000).toFixed(1)}s`);
+  return parts.join(' · ');
+}
+
 async function sendQuestion(question) {
   if (!state.current || state.generating || !question.trim()) return;
   if (state.detail?.id !== state.current) return toast('Notebook is still loading.');
@@ -308,25 +328,29 @@ async function sendQuestion(question) {
   state.generating = true; $('#notebookBanner').classList.add('hidden'); $('#question').value = ''; resizeComposer();
   appendMessage('user', question.trim());
   const answerEl = appendMessage('assistant', '', [], true); let answer = '', citations = [];
+  const rejectedDrafts = [];
   const controller = new AbortController();
-  const run = {notebookId, title, kind:'chat', status:'Finding evidence and generating an answer…', controller};
+  const run = {notebookId, title, kind:'chat', status:'Finding evidence and generating an answer…', controller,
+               answerEl, citations, hasOutput:false, startedAt:Date.now(), firstTokenAt:null, metrics:null};
   state.run = run; renderGenerationStatus();
   const originalView = () => state.current === notebookId && state.viewEpoch === viewEpoch;
   try {
     await streamRequest(`/api/notebooks/${notebookId}/chat`, {question:question.trim(), source_ids:selectedSources()}, event => {
-      if (event.type === 'citations') citations = event.citations;
+      if (event.type === 'citations') { citations = event.citations; run.citations = citations; }
       if (event.type === 'retry') {
+        if (answer.trim()) rejectedDrafts.push(answer);
         answer = '';
+        run.hasOutput = false;
         run.status = event.message || 'Retrying with source citations…';
-        if (originalView()) updateMessage(answerEl, answer, citations, true);
         renderGenerationStatus();
       }
-      if (event.type === 'error' && ['citation_validation', 'source_completeness'].includes(event.reason)) {
-        answer = '';
+      if (event.type === 'delta') {
+        if (!run.hasOutput) run.firstTokenAt = Date.now();
+        run.hasOutput = true; answer += event.text;
         if (originalView()) updateMessage(answerEl, answer, citations, true);
       }
-      if (event.type === 'delta') { answer += event.text; if (originalView()) updateMessage(answerEl, answer, citations, true); }
       if (event.type === 'done' && event.metrics) {
+        run.metrics = event.metrics;
         const {prompt_eval_count, eval_count} = event.metrics;
         if (event.num_ctx) state.numCtx = event.num_ctx;
         if (Number.isInteger(prompt_eval_count) && Number.isInteger(eval_count)) {
@@ -337,6 +361,10 @@ async function sendQuestion(question) {
     }, controller.signal);
     if (originalView()) {
       updateMessage(answerEl, answer, citations, false);
+      const stats = document.createElement('div'); stats.className = 'answer-metrics';
+      stats.textContent = responseMetrics(run.metrics, Date.now() - run.startedAt,
+                                          run.firstTokenAt == null ? null : run.firstTokenAt - run.startedAt);
+      answerEl.lastElementChild.append(stats);
       const actions = document.createElement('div'); actions.className = 'message-actions';
       actions.innerHTML = `<button class="text-button copy-answer">Copy</button><button class="text-button save-answer">Save as note</button>`;
       answerEl.lastElementChild.append(actions);
@@ -358,7 +386,20 @@ async function sendQuestion(question) {
   } catch (error) {
     const failure = error.name === 'AbortError' ? 'Generation interrupted; refresh to check saved output.'
       : ['citation_validation', 'source_completeness'].includes(error.reason) ? error.message : `Generation failed: ${error.message}`;
-    if (originalView()) updateMessage(answerEl, `${answer}\n\n_${failure}_`, citations, false);
+    if (originalView()) {
+      if (answer.trim()) rejectedDrafts.push(answer);
+      const visibleDraft = rejectedDrafts.length > 1
+        ? rejectedDrafts.map((draft, index) => `### Draft ${index + 1}\n\n${draft}`).join('\n\n')
+        : rejectedDrafts[0] || 'No answer text was returned.';
+      updateMessage(answerEl, visibleDraft, citations, false);
+      const note = document.createElement('div'); note.className = 'rejected-answer-note';
+      note.textContent = `${failure} ${rejectedDrafts.length ? 'The draft above was not saved.' : 'No answer was saved.'}`;
+      answerEl.lastElementChild.append(note);
+      const stats = document.createElement('div'); stats.className = 'answer-metrics';
+      stats.textContent = responseMetrics(null, Date.now() - run.startedAt,
+                                          run.firstTokenAt == null ? null : run.firstTokenAt - run.startedAt);
+      answerEl.lastElementChild.append(stats);
+    }
     if (error.name === 'AbortError') toast(`Generation interrupted in ${title}; refresh to view history.`);
     else toast(`${title}: ${error.message}`);
   } finally {

@@ -4,6 +4,13 @@ const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
 const {markdown, escapeHtml} = require('../app/static/markdown.js');
 
+test('chat page requests fresh UI assets and tolerates a cached previous script', () => {
+  const html = readFileSync(require.resolve('../app/static/index.html'), 'utf8');
+  assert.match(html, /\/assets\/app\.js\?v=chat-drafts-20260926/);
+  assert.match(html, /\/assets\/style\.css\?v=chat-drafts-20260926/);
+  assert.match(html, /id="chatStatus" class="hidden"/);
+});
+
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -15,7 +22,7 @@ function uiHarness() {
   const listeners = {};
   function element() {
     const classes = new Set(['hidden']);
-    const children = [], actions = [];
+    const children = [], actions = [], descendants = new Map();
     return {
       classList: {
         add: key => classes.add(key), remove: key => classes.delete(key),
@@ -25,7 +32,9 @@ function uiHarness() {
       style: {}, scrollHeight: 0, scrollTop: 0, textContent: '', value: '', innerHTML: '', children,
       lastElementChild: {children: actions, append(child) { actions.push(child); }},
       append(child) { children.push(child); if (child.className === 'toast') toasts.push(child.textContent); },
-      remove() {}, showModal() { this.open = true; }, setAttribute(key, value) { this[key] = value; }, addEventListener() {}, querySelector() { return element(); }, querySelectorAll() { return []; }
+      remove() {}, showModal() { this.open = true; }, setAttribute(key, value) { this[key] = value; }, addEventListener() {},
+      querySelector(selector) { if (!descendants.has(selector)) descendants.set(selector, element()); return descendants.get(selector); },
+      querySelectorAll() { return []; }
     };
   }
   const node = selector => { if (!nodes.has(selector)) nodes.set(selector, element()); return nodes.get(selector); };
@@ -90,16 +99,17 @@ test('citation retry clears the draft and streams into the same assistant bubble
   assert.equal(answer._content, 'Invalid draft (citation 1)');
   stream.onEvent({type: 'retry', reason: 'citation_validation', message: 'Retrying with source-citation formatting…'});
   assert.equal(answer._content, '');
-  assert.match(ui.node('#chatStatus').textContent, /Retrying with source-citation formatting/);
+  assert.match(answer.querySelector('.message-body').innerHTML, /Retrying with source-citation formatting/);
   stream.onEvent({type: 'delta', text: 'Grounded prose [1].'});
   stream.resolve(); await chat;
   assert.equal(area.children.length, initialCount);
   assert.equal(area.children.at(-1), answer);
   assert.equal(answer._content, 'Grounded prose [1].');
-  assert.equal(answer.lastElementChild.children.length, 1);
+  assert.deepEqual(answer.lastElementChild.children.map(child => child.className),
+                   ['answer-metrics', 'message-actions']);
 });
 
-test('final citation rejection clears both invalid drafts and adds no answer actions', async () => {
+test('final citation rejection shows both attempts and adds no answer actions', async () => {
   const ui = uiHarness(); await ui.ready;
   await ui.context.selectNotebook('A');
   const chat = ui.context.sendQuestion('Make a diagram');
@@ -109,9 +119,69 @@ test('final citation rejection clears both invalid drafts and adds no answer act
   stream.onEvent({type: 'delta', text: 'Second invalid draft'});
   stream.fail('Answer rejected: the model did not provide valid current source citations. Please retry or rephrase the request.', 'citation_validation');
   await chat;
-  assert.doesNotMatch(answer._content, /First invalid draft|Second invalid draft|Generation failed/);
-  assert.match(answer._content, /Answer rejected: the model did not provide valid current source citations/);
-  assert.equal(answer.lastElementChild.children.length, 0);
+  assert.match(answer._content, /Draft 1\n\nFirst invalid draft/);
+  assert.match(answer._content, /Draft 2\n\nSecond invalid draft/);
+  assert.match(answer.lastElementChild.children[0].textContent, /Answer rejected: the model did not provide valid current source citations/);
+  assert.match(answer.lastElementChild.children[0].textContent, /draft above was not saved/);
+  assert.equal(answer.lastElementChild.children.some(child => child.className === 'message-actions'), false);
+});
+
+test('an empty retry cannot erase a previous rejected draft', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  const chat = ui.context.sendQuestion('Compare selected papers');
+  const stream = ui.streams[0], answer = ui.node('#messages').children.at(-1);
+  const table = '| Paper | Result |\n|---|---|\n| First | Accuracy [1] |';
+  stream.onEvent({type: 'delta', text: table});
+  stream.onEvent({type: 'retry', reason: 'citation_validation'});
+  stream.onEvent({type: 'delta', text: '   '});
+  stream.fail('Answer rejected: the model did not provide valid current source citations.', 'citation_validation');
+  await chat;
+  assert.equal(answer._content, table);
+  assert.match(answer.lastElementChild.children[0].textContent, /Answer rejected/);
+  assert.equal(answer.lastElementChild.children.some(child => child.className === 'message-actions'), false);
+});
+
+test('a rejection without generated text says no draft was returned', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  const chat = ui.context.sendQuestion('Question');
+  const stream = ui.streams[0], answer = ui.node('#messages').children.at(-1);
+  stream.fail('Answer rejected: the model did not provide valid current source citations.', 'citation_validation');
+  await chat;
+  assert.equal(answer._content, 'No answer text was returned.');
+  assert.match(answer.lastElementChild.children[0].textContent, /No answer was saved/);
+});
+
+test('source completeness rejection keeps the streamed table beside its rejection', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  const chat = ui.context.sendQuestion('Compare sources');
+  const stream = ui.streams[0], answer = ui.node('#messages').children.at(-1);
+  const table = '| Source | Result |\n|---|---|\n| Paper A | Result [1] |';
+  stream.onEvent({type: 'delta', text: table});
+  stream.fail('Answer rejected: the model omitted or duplicated selected sources.', 'source_completeness');
+  await chat;
+  assert.equal(answer._content, table);
+  assert.match(answer.lastElementChild.children[0].textContent, /omitted or duplicated selected sources/);
+});
+
+test('progress appears by the typing cursor and completed answers show measured speed and time', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  const chat = ui.context.sendQuestion('Question');
+  const stream = ui.streams[0], answer = ui.node('#messages').children.at(-1);
+  assert.match(answer.querySelector('.message-body').innerHTML, /Finding evidence and generating an answer/);
+  stream.onEvent({type: 'status', message: 'Preparing source records…'});
+  assert.match(answer.querySelector('.message-body').innerHTML, /Preparing source records/);
+  stream.onEvent({type: 'delta', text: 'Grounded [1].'});
+  assert.doesNotMatch(answer.querySelector('.message-body').innerHTML, /Preparing source records/);
+  stream.onEvent({type: 'done', metrics: {eval_count: 100, eval_duration: 2e9, total_duration: 3e9}});
+  stream.resolve(); await chat;
+  const metrics = answer.lastElementChild.children.find(child => child.className === 'answer-metrics');
+  assert.match(metrics.textContent, /100 output tokens · 50.0 tokens\/s · Model 3.0s/);
+  assert.match(metrics.textContent, /Before first token/);
+  assert.match(metrics.textContent, /Wall/);
 });
 
 test('grouped sparse citations open the correct source, page and excerpt', async () => {
@@ -195,7 +265,7 @@ test('chat stream remains scoped after navigation; a stale history refresh canno
   assert.equal(stream.path, '/api/notebooks/A/chat');
   await ui.context.selectNotebook('B');
   stream.onEvent({type: 'delta', text: 'A answer'});
-  assert.equal(ui.node('#chatStatus').textContent, 'Chat running in Notebook A…');
+  assert.equal(ui.state.run.status, 'Finding evidence and generating an answer…');
   stream.resolve(); await chat;
   assert.equal(ui.state.detail.id, 'B');
   assert.equal(ui.requests.filter(path => path === '/api/notebooks/B/messages').length, 1);

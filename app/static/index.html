@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Gemma Notebook</title>
-  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="stylesheet" href="/assets/style.css?v=chat-drafts-20260926">
 </head>
 <body>
   <!-- Global Navigation Header -->
@@ -131,7 +131,6 @@
       <div class="chat-header">
         <span class="chat-header-title">Chat</span>
         <div class="chat-header-right">
-          <span id="chatStatus" class="generation-status" role="status" aria-live="polite"></span>
           <button class="text-button" id="clearChat">Clear chat</button>
         </div>
       </div>
@@ -336,8 +335,10 @@
   </dialog>
 
   <div class="toast-stack" id="toasts"></div>
+  <!-- Older cached app.js expects this node; keep it hidden while versioned assets load. -->
+  <span id="chatStatus" class="hidden" aria-hidden="true"></span>
   <script src="/assets/markdown.js" defer></script>
   <script src="/assets/stream.js" defer></script>
-  <script src="/assets/app.js" defer></script>
+  <script src="/assets/app.js?v=chat-drafts-20260926" defer></script>
 </body>
 </html>

@@ -369,6 +369,9 @@ button { cursor: pointer; border: none; background: transparent; }
 .chat-header-right { display: flex; align-items: center; gap: 8px; }
 .generation-status { color: var(--ink-muted); font-size: 12px; line-height: 1.4; }
 .generation-status:empty { display: none; }
+.assistant-progress { display: inline-block; color: var(--ink-muted); font-size: 12px; }
+.answer-metrics { margin-top: 8px; color: var(--ink-muted); font-size: 11.5px; }
+.rejected-answer-note { margin-top: 12px; padding: 10px 12px; border-left: 3px solid #d97706; background: var(--card-bg); color: var(--ink); font-size: 12px; }
 .text-button { background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 4px; }
 .text-button:hover { color: var(--ink); background: var(--card-hover); }
 
