@@ -17,7 +17,7 @@ THINKING = os.getenv("THINKING", "auto").strip().lower()
 METRIC_KEYS = ("total_duration", "load_duration", "prompt_eval_duration", "eval_duration",
                "prompt_eval_count", "eval_count")
 CONTEXT_OPTIONS = (2048, 4096, 8192, 16384, 32768, 65536)
-THINKING_OPTIONS = ("auto", "off", "on")
+THINKING_OPTIONS = ("auto", "off", "low", "medium", "high", "max", "on")
 TEMPERATURE_OPTIONS = (0.0, 0.2, 0.4, 0.7, 1.0)
 MIN_NUM_CTX, MAX_NUM_CTX = min(CONTEXT_OPTIONS), max(CONTEXT_OPTIONS)
 
@@ -41,6 +41,8 @@ def set_generation_settings(model=None, num_ctx=None, temperature=None, thinking
 def thinking_value(mode=None):
     """Translate the UI mode to Ollama's optional top-level think value."""
     selected = THINKING if mode is None else mode
+    if selected in {"low", "medium", "high", "max"}:
+        return selected
     return {"auto": None, "off": False, "on": True}[selected]
 
 

@@ -6,8 +6,8 @@ const {markdown, escapeHtml} = require('../app/static/markdown.js');
 
 test('chat page requests fresh UI assets and tolerates a cached previous script', () => {
   const html = readFileSync(require.resolve('../app/static/index.html'), 'utf8');
-  assert.match(html, /\/assets\/app\.js\?v=model-controls-20260926/);
-  assert.match(html, /\/assets\/style\.css\?v=model-controls-20260926/);
+  assert.match(html, /\/assets\/app\.js\?v=thinking-levels-20260926/);
+  assert.match(html, /\/assets\/style\.css\?v=thinking-levels-20260926/);
   assert.match(html, /id="thinkingSelect"/);
   assert.match(html, /id="temperatureSelect"/);
   assert.match(html, /id="chatStatus" class="hidden"/);
@@ -60,7 +60,8 @@ function uiHarness() {
       const body = path === '/api/health' ? {ollama: true, generation_ready: true, embedding_ready: true}
         : path === '/api/settings' ? {generation_model: 'gemma4:e4b', available_models: ['gemma4:e4b'],
             num_ctx: 16384, context_options: [8192, 16384], temperature: 0.2,
-            temperature_options: [0, 0.2, 0.7], thinking: 'auto', thinking_options: ['auto', 'off', 'on']}
+            temperature_options: [0, 0.2, 0.7], thinking: 'auto',
+            thinking_options: ['auto', 'off', 'low', 'medium', 'high', 'max', 'on']}
         : path === '/api/notebooks' ? Object.values(notebooks)
         : path.endsWith('/messages') ? histories[path.split('/')[3]] : notebooks[path.split('/').at(-1)];
       return {ok: true, json: async () => body};

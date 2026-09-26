@@ -986,9 +986,13 @@ def test_ollama_final_metrics_vram_and_truncation(monkeypatch):
         monkeypatch.setattr(models, "THINKING", "on")
         enabled = [event async for event in provider.stream(
             [{"role": "user", "content": "reason"}])]
+        monkeypatch.setattr(models, "THINKING", "max")
+        maximum = [event async for event in provider.stream(
+            [{"role": "user", "content": "reason deeply"}])]
         assert output[0].text == "hello"
         assert disabled[0].text == "hello"
         assert enabled[0].text == "hello"
+        assert maximum[0].text == "hello"
         assert output[1].metrics == {"total_duration": 10, "load_duration": 2,
                                      "prompt_eval_duration": 3, "eval_duration": 4,
                                      "prompt_eval_count": 5, "eval_count": 6}
@@ -1000,6 +1004,7 @@ def test_ollama_final_metrics_vram_and_truncation(monkeypatch):
         assert chat_payloads[0]["options"]["temperature"] == models.TEMPERATURE
         assert chat_payloads[1]["think"] is False
         assert chat_payloads[2]["think"] is True
+        assert chat_payloads[3]["think"] == "max"
 
     import asyncio
     asyncio.run(check())
@@ -1033,13 +1038,16 @@ def test_runtime_generation_settings_include_context_temperature_and_thinking(en
     assert current["num_ctx"] == 16384
     assert current["temperature"] == 0.2
     assert current["thinking"] == "auto"
-    assert current["thinking_options"] == ["auto", "off", "on"]
+    assert current["thinking_options"] == ["auto", "off", "low", "medium", "high", "max", "on"]
 
     updated = client.post("/api/settings", json={
         "num_ctx": 32768, "temperature": 0.4, "thinking": "on"}).json()
     assert updated == {"generation_model": models.GENERATION_MODEL, "num_ctx": 32768,
                        "temperature": 0.4, "thinking": "on"}
     assert models.thinking_value() is True
+    updated = client.post("/api/settings", json={"thinking": "max"}).json()
+    assert updated["thinking"] == "max"
+    assert models.thinking_value() == "max"
     assert client.post("/api/settings", json={"thinking": "maximum"}).status_code == 400
     assert client.post("/api/settings", json={"temperature": 2.1}).status_code == 422
 

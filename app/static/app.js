@@ -90,8 +90,9 @@ async function loadSettings() {
         `<option value="${n}" ${n === settings.num_ctx ? 'selected' : ''}>${formatTokens(n)}</option>`).join('');
     }
     if (thinkingSelect) {
-      const labels = {auto: 'Think auto', off: 'Think off', on: 'Think on'};
-      thinkingSelect.innerHTML = (settings.thinking_options || ['auto', 'off', 'on']).map(value =>
+      const labels = {auto: 'Think auto', off: 'Think off', low: 'Think low', medium: 'Think medium',
+        high: 'Think high', max: 'Think max', on: 'Think on'};
+      thinkingSelect.innerHTML = (settings.thinking_options || ['auto', 'off', 'low', 'medium', 'high', 'max', 'on']).map(value =>
         `<option value="${value}" ${value === settings.thinking ? 'selected' : ''}>${labels[value] || value}</option>`).join('');
     }
     if (temperatureSelect) {
