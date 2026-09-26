@@ -1,6 +1,8 @@
 import asyncio
 import json
 import sqlite3
+import sys
+import types
 
 import httpx
 import pytest
@@ -746,6 +748,25 @@ def test_embedding_validation_and_atomic_ingestion(env):
     assert db.row("SELECT e.model_name,e.model_digest,e.dimensions FROM chunk_embeddings e "
                   "JOIN chunks c ON c.id=e.chunk_id WHERE c.source_id=?", (sid,)) == {
         "model_name": models.EMBEDDING_MODEL, "model_digest": "test-digest", "dimensions": 2}
+
+
+def test_pdf_extraction_failure_sets_source_error_without_indexing(env, monkeypatch):
+    _, nid, _, root = env
+    path = root / "broken.pdf"
+    path.write_bytes(b"invalid PDF")
+    source_id = db.uid()
+    db.execute("INSERT INTO sources(id,notebook_id,name,kind,path,status,created_at,updated_at) VALUES(?,?,?,?,?,'queued',?,?)",
+               (source_id, nid, "broken.pdf", "pdf", str(path), db.now(), db.now()))
+    monkeypatch.setitem(sys.modules, "pymupdf4llm", types.SimpleNamespace(
+        to_markdown=lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("PDF conversion failed"))
+    ))
+
+    documents.process_source(source_id)
+
+    source = db.row("SELECT status,error FROM sources WHERE id=?", (source_id,))
+    assert source["status"] == "error"
+    assert "PDF Markdown extraction failed (RuntimeError)" in source["error"]
+    assert db.row("SELECT COUNT(*) AS n FROM chunks WHERE source_id=?", (source_id,))["n"] == 0
 
 
 def test_upload_lifecycle_additive_schema(env):

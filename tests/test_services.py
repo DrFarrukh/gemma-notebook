@@ -1,13 +1,15 @@
 import asyncio
 import json
 import os
+import sys
+import types
 from pathlib import Path
 
 import httpx
 
 os.environ.setdefault("DATA_DIR", "/tmp/gemma-notebook-tests")
 
-from app import services
+from app import documents, services
 
 
 def test_clean_text_normalizes_whitespace():
@@ -43,6 +45,92 @@ def test_text_and_html_extraction(tmp_path):
     pages, _ = services.extract(html_file, "html")
     assert "Heading" in pages[0]["text"] and "Body" in pages[0]["text"]
     assert "ignore()" not in pages[0]["text"]
+
+
+def test_pdf_extraction_returns_page_associated_markdown(tmp_path, monkeypatch):
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-placeholder")
+    calls = []
+    markdown_pages = [
+        {"metadata": {"page": 2}, "text": "## II. Dataset\n\n" + "Body paragraph. " * 12},
+        {"metadata": {"page": 3}, "text": "Continuation. " * 12},
+    ]
+    monkeypatch.setitem(sys.modules, "pymupdf4llm", types.SimpleNamespace(
+        to_markdown=lambda *args, **kwargs: calls.append((args, kwargs)) or markdown_pages
+    ))
+
+    pages, scanned = services.extract(pdf, "pdf")
+
+    assert [page["page"] for page in pages] == [2, 3]
+    assert pages[0]["text"].startswith("## II. Dataset")
+    assert not scanned
+    assert calls[0][1] == {"page_chunks": True}
+    assert [chunk["page"] for chunk in services.split_pages(pages, preserve_sections=True)] == [2, 3]
+
+
+def test_pdf_markdown_heading_sections_change_deterministically():
+    chunks = services.split_pages([
+        {"page": 4, "text": "## II. Dataset\n\nDataset body.\n\n### A. Longitudinal Dataset\n\nStudy body."},
+        {"page": 5, "text": "Continuation on next page."},
+        {"page": 6, "text": "## III. Architecture\n\nModel body."},
+    ], preserve_sections=True)
+
+    assert chunks[0]["page"] == 4
+    assert chunks[0]["section"] == "II. Dataset"
+    assert "## II. Dataset" in chunks[0]["text"]
+    assert any(chunk["section"] == "II. Dataset > A. Longitudinal Dataset" and chunk["page"] == 4
+               for chunk in chunks)
+    assert any(chunk["section"] == "II. Dataset > A. Longitudinal Dataset" and chunk["page"] == 5
+               for chunk in chunks)
+    assert any(chunk["section"] == "III. Architecture" and chunk["page"] == 6
+               for chunk in chunks)
+
+
+def test_pdf_heading_normalization_marks_generic_academic_sections():
+    normalized = documents.normalize_pdf_headings(
+        "I. INTRODUCTION\n\n_A._ _Experimental Dataset and Setup_\n\nB. Mel-Spectrogram-Based Feature Extraction\n\nANALYSIS OF EXISTING DATASETS\n\n_1)_ _First Dataset:_ Dataset details follow.\n# **E**"
+    )
+    assert normalized.splitlines() == [
+        "## I. INTRODUCTION", "", "### A. Experimental Dataset and Setup", "",
+        "### B. Mel-Spectrogram-Based Feature Extraction", "", "### ANALYSIS OF EXISTING DATASETS", "",
+        "#### 1. First Dataset:", "Dataset details follow.", "E"
+    ]
+
+
+def test_pdf_plain_text_chunks_without_a_section():
+    chunks = services.split_pages([{"page": 9, "text": "Plain paragraph. " * 220}], preserve_sections=True)
+    assert len(chunks) > 1
+    assert all(chunk["page"] == 9 and chunk["section"] is None for chunk in chunks)
+
+
+def test_pdf_oversized_paragraph_respects_hard_cap_with_overlap():
+    text = "x" * 8500
+    chunks = services.split_pages([{"page": 10, "text": text}], preserve_sections=True)
+    assert all(len(chunk["text"]) <= 4000 for chunk in chunks)
+    assert chunks[0]["text"][-350:] in chunks[1]["text"]
+
+
+def test_pdf_extraction_empty_and_broken_results_fail_safely(tmp_path, monkeypatch):
+    pdf = tmp_path / "empty.pdf"
+    pdf.write_bytes(b"%PDF-placeholder")
+    monkeypatch.setitem(sys.modules, "pymupdf4llm", types.SimpleNamespace(to_markdown=lambda *a, **k: []))
+    with pytest.raises(ValueError, match="No readable text"):
+        services.extract(pdf, "pdf")
+    monkeypatch.setitem(sys.modules, "pymupdf4llm", types.SimpleNamespace(
+        to_markdown=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("broken PDF"))
+    ))
+    with pytest.raises(ValueError, match=r"PDF Markdown extraction failed \(RuntimeError\)"):
+        services.extract(pdf, "pdf")
+
+
+def test_non_pdf_extraction_and_chunk_sections_remain_unchanged(tmp_path):
+    path = tmp_path / "notes.md"
+    path.write_text("## Heading\n\nBody", encoding="utf-8")
+    pages, scanned = services.extract(path, "markdown")
+    chunks = services.split_pages(pages)
+    assert pages == [{"page": None, "text": "## Heading\n\nBody"}]
+    assert not scanned
+    assert chunks == [{"ordinal": 0, "page": None, "text": "## Heading\n\nBody"}]
 
 
 def test_safe_filename_and_type_validation():

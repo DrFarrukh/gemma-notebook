@@ -9,13 +9,15 @@ from bs4 import BeautifulSoup
 from docx import Document
 from odf import teletype
 from odf.opendocument import load as load_odf
-from pypdf import PdfReader
 
 from . import db, models
 
 MAX_CHARS = 2_000_000
-CHUNK_SIZE = 1800
-CHUNK_OVERLAP = 250
+CHUNK_SIZE = 2800
+CHUNK_OVERLAP = 350
+CHUNK_HARD_CAP = 4000
+LEGACY_CHUNK_SIZE = 1800
+LEGACY_CHUNK_OVERLAP = 250
 
 
 def clean_text(text):
@@ -24,14 +26,74 @@ def clean_text(text):
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
+def normalize_pdf_headings(text):
+    """Mark conventional, visually formatted document headings as Markdown."""
+    output = []
+    roman_heading = re.compile(r"^([IVXLCDM]+)\.\s+([A-Z][A-Z0-9 /,&:;()'’\-]{2,})$")
+    previous_nonempty = ""
+    for line in text.splitlines():
+        plain = re.sub(r"[*_`]+", "", line).strip()
+        existing_heading = re.match(r"^#{1,6}\s+(.+)$", line)
+        if existing_heading:
+            title = re.sub(r"[*_`]+", "", existing_heading.group(1)).strip()
+            output.append(line if len(title) >= 3 else title)
+            continue
+        roman = roman_heading.match(plain)
+        emphasized = line.lstrip().startswith(("_", "*")) or line.rstrip().endswith(("_", "*"))
+        alpha = re.match(r"^([A-Z])\.\s+(.{4,})$", plain)
+        alpha_title = alpha.group(2).strip() if alpha else ""
+        alpha_heading = alpha and (emphasized or (
+            len(alpha_title.split()) <= 12 and not alpha_title.endswith((".", ",", ";"))
+        ))
+        uppercase_heading = re.match(r"^[A-Z][A-Z &()'’\-]{8,}$", plain)
+        if uppercase_heading and (not 2 <= len(plain.split()) <= 12
+                                  or re.match(r"^TABLE\s+\w+", previous_nonempty, re.I)):
+            uppercase_heading = None
+        numbered = re.match(r"^(\d+)[.)]\s+(.{4,}?[:.])(?:\s+(.+))?$", plain) if emphasized else None
+        if roman:
+            output.append(f"## {roman.group(1)}. {roman.group(2).strip()}")
+        elif alpha_heading:
+            output.append(f"### {alpha.group(1)}. {alpha.group(2).strip()}")
+        elif numbered:
+            output.append(f"#### {numbered.group(1)}. {numbered.group(2).strip()}")
+            if numbered.group(3):
+                output.append(numbered.group(3).strip())
+        elif uppercase_heading:
+            output.append(f"### {plain}")
+        else:
+            output.append(line)
+        if plain:
+            previous_nonempty = plain
+    return "\n".join(output)
+
+
 def extract(path: Path, kind: str):
     suffix = path.suffix.lower()
     pages = []
     scanned = False
     if suffix == ".pdf":
-        reader = PdfReader(str(path))
-        for index, page in enumerate(reader.pages, 1):
-            pages.append({"page": index, "text": clean_text(page.extract_text() or "")})
+        # Keep the import local so non-PDF extraction does not depend on the
+        # PDF conversion stack at module import time. The core package is used
+        # without its optional Layout/OCR modules to retain scanned-PDF behavior.
+        try:
+            import pymupdf4llm
+            converted = pymupdf4llm.to_markdown(str(path), page_chunks=True)
+        except Exception as exc:
+            raise ValueError(f"PDF Markdown extraction failed ({type(exc).__name__})") from exc
+        if not isinstance(converted, list):
+            raise ValueError("PDF Markdown extraction returned an invalid result")
+        for item in converted:
+            try:
+                metadata = item["metadata"]
+                # PyMuPDF4LLM 0.x used metadata.page; 1.x names the same
+                # 1-based value page_number.
+                page_number = int(metadata.get("page_number", metadata.get("page")))
+                markdown = item["text"]
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                raise ValueError("PDF Markdown extraction returned invalid page data") from exc
+            if page_number < 1 or not isinstance(markdown, str):
+                raise ValueError("PDF Markdown extraction returned invalid page data")
+            pages.append({"page": page_number, "text": normalize_pdf_headings(clean_text(markdown))})
         total = sum(len(p["text"]) for p in pages)
         scanned = bool(pages and total < max(80, len(pages) * 30))
     elif suffix == ".docx":
@@ -58,25 +120,112 @@ def extract(path: Path, kind: str):
     return pages, scanned
 
 
-def split_pages(pages):
+def split_pages(pages, preserve_sections=False, chunk_size=None, overlap=None, hard_cap=None):
     chunks = []
     ordinal = 0
+    if not preserve_sections:
+        chunk_size = LEGACY_CHUNK_SIZE
+        overlap = LEGACY_CHUNK_OVERLAP
+        for page in pages:
+            text = page["text"]
+            start = 0
+            while start < len(text):
+                end = min(start + chunk_size, len(text))
+                if end < len(text):
+                    boundary = max(text.rfind("\n\n", start, end), text.rfind(". ", start, end))
+                    if boundary > start + chunk_size // 2:
+                        end = boundary + 1
+                piece = text[start:end].strip()
+                if piece:
+                    chunks.append({"ordinal": ordinal, "page": page["page"], "text": piece})
+                    ordinal += 1
+                if end >= len(text):
+                    break
+                start = max(start + 1, end - overlap)
+        return chunks
+
+    chunk_size = chunk_size or CHUNK_SIZE
+    overlap = overlap if overlap is not None else CHUNK_OVERLAP
+    hard_cap = hard_cap or CHUNK_HARD_CAP
+    chunk_size = min(chunk_size, hard_cap)
+
+    heading_stack = []
     for page in pages:
         text = page["text"]
-        start = 0
-        while start < len(text):
-            end = min(start + CHUNK_SIZE, len(text))
-            if end < len(text):
-                boundary = max(text.rfind("\n\n", start, end), text.rfind(". ", start, end))
-                if boundary > start + CHUNK_SIZE // 2:
-                    end = boundary + 1
-            piece = text[start:end].strip()
-            if piece:
-                chunks.append({"ordinal": ordinal, "page": page["page"], "text": piece})
+        # Treat Markdown headings as deterministic section boundaries. Build
+        # blocks first so ordinary paragraph boundaries remain preferred.
+        blocks = []
+        current = []
+        for line in text.splitlines():
+            heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
+            if heading and len(re.sub(r"[*_`]+", "", heading.group(2)).strip()) < 3:
+                heading = None
+            if heading:
+                if current:
+                    blocks.append(("\n".join(current).strip(), None))
+                    current = []
+                level = len(heading.group(1))
+                title = re.sub(r"[*_`]+", "", heading.group(2)).strip()
+                blocks.append((line.strip(), (level, title)))
+            elif not line.strip():
+                if current:
+                    blocks.append(("\n".join(current).strip(), None))
+                    current = []
+            else:
+                current.append(line)
+        if current:
+            blocks.append(("\n".join(current).strip(), None))
+
+        # Paragraphs inherit the most recent Markdown heading, including
+        # headings established on prior pages.
+        page_chunks = []
+        for block, section in blocks:
+            if section:
+                level, title = section
+                heading_stack = heading_stack[:level - 1]
+                while len(heading_stack) < level - 1:
+                    heading_stack.append(None)
+                heading_stack.append(title)
+                page_chunks.append((block, " > ".join(item for item in heading_stack if item)))
+            else:
+                page_chunks.append((block, " > ".join(item for item in heading_stack if item) or None))
+
+        pending_text, pending_section = "", None
+        for block, section in page_chunks:
+            if not block:
+                continue
+            if pending_text and (section != pending_section or len(pending_text) + 2 + len(block) > chunk_size):
+                chunks.append({"ordinal": ordinal, "page": page["page"],
+                               "section": pending_section, "text": pending_text})
                 ordinal += 1
-            if end >= len(text):
-                break
-            start = max(start + 1, end - CHUNK_OVERLAP)
+                # Carry a small same-section overlap across chunks. A heading
+                # change starts a clean chunk with the new section.
+                if section == pending_section:
+                    pending_text = pending_text[-overlap:]
+                else:
+                    pending_text = ""
+            if not pending_text:
+                pending_section = section
+            pending_text = f"{pending_text}\n\n{block}".strip() if pending_text else block
+
+            while len(pending_text) > chunk_size:
+                end = min(chunk_size, len(pending_text))
+                boundary = max(pending_text.rfind("\n\n", 0, end), pending_text.rfind(". ", 0, end))
+                if boundary > chunk_size // 2:
+                    end = boundary + 1
+                else:
+                    # If this is one unusually long paragraph with no useful
+                    # boundary near the target, split only at the hard cap.
+                    end = min(hard_cap, len(pending_text))
+                piece = pending_text[:end].strip()
+                chunks.append({"ordinal": ordinal, "page": page["page"],
+                               "section": pending_section, "text": piece})
+                ordinal += 1
+                pending_text = pending_text[max(end - overlap, end if end == len(pending_text) else 0):].strip()
+        if pending_text:
+            chunks.append({"ordinal": ordinal, "page": page["page"],
+                           "section": pending_section, "text": pending_text})
+            ordinal += 1
     return chunks
 
 
@@ -109,7 +258,7 @@ def process_source(source_id):
                              ("This appears to be an image-only PDF. Local OCR is not enabled in v1.", len(pages), db.now(), source_id))
                 db.touch_notebook(conn, source["notebook_id"])
             return
-        chunks = split_pages(pages)
+        chunks = split_pages(pages, preserve_sections=source["kind"] == "pdf")
         vectors = []
         dimension = None
         embedding_digest = models.embedding_model_digest()
@@ -126,7 +275,7 @@ def process_source(source_id):
             for chunk, vector in zip(chunks, vectors):
                 chunk_id = db.uid()
                 conn.execute("INSERT INTO chunks(id,source_id,notebook_id,ordinal,page,section,text,embedding) VALUES(?,?,?,?,?,?,?,?)",
-                             (chunk_id, source_id, source["notebook_id"], chunk["ordinal"], chunk["page"], None, chunk["text"], struct.pack(f"<{len(vector)}f", *vector)))
+                             (chunk_id, source_id, source["notebook_id"], chunk["ordinal"], chunk["page"], chunk.get("section"), chunk["text"], struct.pack(f"<{len(vector)}f", *vector)))
                 if embedding_digest:
                     conn.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
                                  (chunk_id, models.EMBEDDING_MODEL, embedding_digest,

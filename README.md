@@ -29,6 +29,27 @@ Open <http://127.0.0.1:8787>. Use `./logs.sh` for logs and `./stop.sh` to stop t
 - Scanned-PDF detection with a clear OCR warning
 - Local-only storage and localhost-only network binding
 
+PDFs are converted to page-wise Markdown with PyMuPDF4LLM before chunking. Page numbers remain attached to chunks for citations, and the uploaded PDF remains the original file used for viewing. Deterministic Markdown heading handling populates chunk sections when headings are available. PDF chunks target about 2,800 characters with 350 characters of overlap and a 4,000-character hard cap; other file types retain their existing extraction and chunking paths. Ingestion does not use an LLM or OCR. Image-only PDFs continue to show the existing local OCR warning.
+
+### Inspect PDF extraction
+
+The developer benchmark compares legacy pypdf extraction with PyMuPDF4LLM on the local EMG PDFs when available. It reports page and character counts, chunk counts at 1,800/250, 2,800/350, and 3,500/350 targets, detected headings, and extraction time. It writes the metrics and samples from the first four pages to `/app/benchmark/pdf_extraction.md` inside the container.
+
+After `./start.sh`, inspect one PDF from the running container with:
+
+```bash
+pdf="$(find data/files -type f -iname '*E2CNN*.pdf' -print -quit)"
+test -n "$pdf"
+podman exec gemma-notebook python /app/scripts/benchmark_pdf_extraction.py "/app/$pdf"
+podman exec gemma-notebook sed -n '1,240p' /app/benchmark/pdf_extraction.md
+```
+
+Run the benchmark without a path to compare both local benchmark PDFs:
+
+```bash
+podman exec gemma-notebook python /app/scripts/benchmark_pdf_extraction.py
+```
+
 The 50 MB upload, 50 sources-per-notebook, and 2 million extracted characters-per-source limits protect against accidental oversized jobs. The generation request asks Ollama for a 65,536-token context via the runtime `num_ctx` option; `64k` is not part of the model tag. This is a request, not a guarantee that the model and context fit in your RAM/VRAM. On memory pressure or slow generation, close other workloads, use a smaller model or shorten source material; large contexts and two-stage Studio jobs may take a long time. Check `./logs.sh`, `ollama list`, and `ollama show gemma4:e4b` when troubleshooting. The health indicator checks API reachability and installed tags, not inference capacity.
 
 Retrieval uses a heuristic relevance gate, not a guarantee of complete evidence or correctness. Follow-up retrieval uses the current question, **not** resolved conversational coreference; the prompt includes only recent prior user questions as context, not prior answers as evidence. Rephrase ambiguous follow-ups explicitly. Studio samples up to four chunks per source (the first 1,000 characters of each selected chunk), summarizes each source, then synthesizes the final artifact; sampling is not exhaustive. Treat source text and intermediate summaries as untrusted: prompt injection defenses cannot guarantee immunity. SQLite-backed retrieval is used today; a vector index is deferred. Verify claims against original files and citations. Studio and chat have Stop controls; interruption does not guarantee server-side rollback, so refresh to check saved output.
