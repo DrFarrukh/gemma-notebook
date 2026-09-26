@@ -37,10 +37,13 @@ MAX_CHAT_INPUT_CHARS = 60_000  # Full structured user message, including JSON es
 MAX_EXHAUSTIVE_SOURCES = 50
 MAX_EXHAUSTIVE_MAP_EVIDENCE_CHARS = 6000
 MAX_EXHAUSTIVE_MAP_INPUT_CHARS = 20_000
+MAX_EXHAUSTIVE_RECORD_CHARS = 2400
 VALIDATION_FAILURE_CODES = frozenset({
     "no_valid_citations", "invalid_citation_ids", "malformed_citation", "uncited_source_row",
     "missing_source_row", "duplicate_source_row", "source_completeness_failure",
-    "malformed_exhaustive_record", "final_synthesis_validation",
+    "unmatched_source_row", "unparseable_source_rows", "malformed_exhaustive_record",
+    "map_no_valid_citations", "map_invalid_citation_ids", "map_record_too_large",
+    "map_empty_record", "map_malformed_citation", "final_synthesis_validation",
 })
 VALIDATION_STAGES = frozenset({"chat", "exhaustive_map", "exhaustive_synthesis"})
 
@@ -52,9 +55,16 @@ class CitationValidationError(Exception):
 
 
 class SourceCompletenessError(Exception):
-    def __init__(self, code="source_completeness_failure"):
+    def __init__(self, code="source_completeness_failure", details=None):
         self.code = code
+        self.details = details or {}
         super().__init__(code)
+
+
+class MapRecordTooLarge(ValueError):
+    def __init__(self, char_count):
+        self.char_count = char_count
+        super().__init__("Source summary exceeds maximum response size")
 
 
 def _citation_failure_code(exc):
@@ -67,13 +77,21 @@ def _citation_failure_code(exc):
     return "final_synthesis_validation"
 
 
-def _validation_failure(state, stage, attempt, code):
+def _validation_failure(state, stage, attempt, code, details=None):
     # Fixed codes and numeric attempts only; never persist prompts or drafts.
     if code not in VALIDATION_FAILURE_CODES:
         code = "final_synthesis_validation"
     if stage not in VALIDATION_STAGES:
         stage = "validation"
-    state["validation_failures"].append({"stage": stage, "attempt": attempt, "code": code})
+    entry = {"stage": stage, "attempt": attempt, "code": code}
+    for key in ("output_char_count", "output_char_limit", "output_token_count",
+                "allowed_citation_count", "recognized_citation_count", "expected_source_count",
+                "parsed_row_count", "matched_source_count", "missing_source_count",
+                "duplicate_source_count", "unmatched_row_count", "expected_source_labels",
+                "matched_source_labels"):
+        if details and key in details:
+            entry[key] = details[key]
+    state["validation_failures"].append(entry)
 
 
 class RunMetrics:
@@ -200,16 +218,20 @@ def references(text, allowed):
     return numbers
 
 
-async def collect(messages, metrics, stage):
+async def collect(messages, metrics, stage, output_meta=None):
     content, completed = "", False
     metrics.start(stage)
     async for event in models.provider.stream(messages):
         if event.type == "text":
             content += event.text
+            if output_meta is not None:
+                output_meta["output_char_count"] = len(content)
             if len(content) > 8192:
-                raise ValueError("Source summary exceeds maximum response size")
+                raise MapRecordTooLarge(len(content))
         elif event.type == "metrics":
             metrics.finish(event.metrics)
+            if output_meta is not None:
+                output_meta["output_token_count"] = (event.metrics or {}).get("eval_count")
             completed = True
     if not completed:
         raise RuntimeError("Incomplete model stream")
@@ -279,31 +301,42 @@ def _validate_source_rows(answer, source_refs):
         elif not in_code and line.lstrip().startswith("|") and line.count("|") >= 2:
             rows.append(line)
     separators = [index for index, row in enumerate(rows) if re.fullmatch(r"[\s|:-]+", row)]
+    expected = list(source_refs)
     if len(separators) != 1:
-        raise SourceCompletenessError()
+        raise SourceCompletenessError("unparseable_source_rows", {
+            "expected_source_count": len(expected), "parsed_row_count": 0,
+            "matched_source_count": 0, "missing_source_count": len(expected),
+            "duplicate_source_count": 0, "unmatched_row_count": 0,
+            "expected_source_labels": expected, "matched_source_labels": []})
     rows = rows[separators[0] + 1:]
-    if len(rows) != len(source_refs):
-        counts = [sum(bool(re.search(rf"^\s*\|\s*{re.escape(label)}\b", line)) for line in rows)
-                  for label in source_refs]
-        if any(count > 1 for count in counts):
-            raise SourceCompletenessError("duplicate_source_row")
-        if any(count == 0 for count in counts):
-            raise SourceCompletenessError("missing_source_row")
-        raise SourceCompletenessError()
+    matches = {label: [line for line in rows if re.search(rf"^\s*\|\s*{re.escape(label)}\b", line)]
+               for label in expected}
+    matched = [label for label, found in matches.items() if found]
+    unmatched = sum(not any(line in found for found in matches.values()) for line in rows)
+    details = {"expected_source_count": len(expected), "parsed_row_count": len(rows),
+               "matched_source_count": len(matched),
+               "missing_source_count": len(expected) - len(matched),
+               "duplicate_source_count": sum(len(found) - 1 for found in matches.values() if len(found) > 1),
+               "unmatched_row_count": unmatched,
+               "expected_source_labels": expected, "matched_source_labels": matched}
+    if details["duplicate_source_count"]:
+        raise SourceCompletenessError("duplicate_source_row", details)
+    if unmatched:
+        raise SourceCompletenessError("unmatched_source_row", details)
+    if details["missing_source_count"]:
+        raise SourceCompletenessError("missing_source_row", details)
+    if len(rows) != len(expected):
+        raise SourceCompletenessError("source_completeness_failure", details)
     for label, allowed in source_refs.items():
-        matches = [line for line in rows if re.search(rf"^\s*\|\s*{re.escape(label)}\b", line)]
-        if not matches:
-            raise SourceCompletenessError("missing_source_row")
-        if len(matches) != 1:
-            raise SourceCompletenessError("duplicate_source_row")
+        row = matches[label][0]
         if allowed:
             try:
-                if not references(matches[0], allowed):
+                if not references(row, allowed):
                     raise CitationValidationError("uncited_source_row")
             except ValueError as exc:
                 raise CitationValidationError(_citation_failure_code(exc)) from exc
-        elif "not reported in supplied evidence" not in matches[0].lower():
-            raise SourceCompletenessError()
+        elif "not reported in supplied evidence" not in row.lower():
+            raise SourceCompletenessError("source_completeness_failure", details)
 
 
 async def _validated_stream(messages, allowed, metrics, stage, retry_state, source_refs=None):
@@ -332,7 +365,7 @@ async def _validated_stream(messages, allowed, metrics, stage, retry_state, sour
             if source_refs is not None:
                 _validate_source_rows(answer, source_refs)
         except SourceCompletenessError as exc:
-            _validation_failure(retry_state, stage, attempt + 1, exc.code)
+            _validation_failure(retry_state, stage, attempt + 1, exc.code, exc.details)
             raise
         except (ValueError, CitationValidationError) as exc:
             _validation_failure(retry_state, stage, attempt + 1, _citation_failure_code(exc))
@@ -352,7 +385,7 @@ async def _exhaustive_context(question, source_groups, metrics, history, retry_s
     count = len(source_groups)
     if count > MAX_EXHAUSTIVE_SOURCES:
         raise ValueError("Too many selected sources for a source-complete answer")
-    summary_cap = min(800, max(300, 16_000 // count))
+    summary_cap = min(MAX_EXHAUSTIVE_RECORD_CHARS, max(300, 30_000 // count))
     excerpt_cap = min(600, max(100, 20_000 // (3 * count)))
     chunks = [chunk for _, group in source_groups for chunk in group]
     numbers = {chunk["id"]: i for i, chunk in enumerate(chunks, 1)}
@@ -375,27 +408,44 @@ async def _exhaustive_context(question, source_groups, metrics, history, retry_s
                          "\n</untrusted_evidence_jsonl>\n<request_json>\n" + map_request + "\n</request_json>")
             if len(map_input) > MAX_EXHAUSTIVE_MAP_INPUT_CHARS:
                 raise ValueError("Serialized map input exceeds budget")
-            map_system = (SYSTEM_PROMPT + f" Extract a compact single-source record in at most {summary_cap} characters. "
-                          "Address the fields requested by the current question. Cite every supported value with this source's "
-                          "original citation numbers. For absent fields write 'Not reported in supplied evidence'. "
+            map_system = (SYSTEM_PROMPT + f" Extract a COMPACT single-source record in at most {summary_cap} characters. "
+                          "Include only factual fields requested by the current question and their citations. "
+                          "Use short field-value lines, for example 'Model: ... [n]' or 'Dataset: ... [n]' when requested. "
+                          "No introduction, conclusion, discussion, narrative prose, or repeated explanation. "
+                          "Cite every supported value with this source's original citation numbers. "
+                          "For unsupported requested fields write 'Not reported in supplied evidence'. "
                           "Do not use other sources or invent values.")
             for attempt in range(2):
+                output_meta = {"output_char_count": 0, "output_char_limit": summary_cap,
+                               "output_token_count": None, "allowed_citation_count": len(allowed),
+                               "recognized_citation_count": 0}
                 try:
                     system = map_system if attempt == 0 else map_system + " " + CITATION_RETRY_PROMPT
                     summary = await collect([{"role": "system", "content": system},
                                              {"role": "user", "content": map_input}],
-                                            metrics, "exhaustive_map" if attempt == 0 else "exhaustive_map_retry")
+                                            metrics, "exhaustive_map" if attempt == 0 else "exhaustive_map_retry",
+                                            output_meta)
+                    if not summary.strip():
+                        raise ValueError("Source record is empty")
                     if len(summary) > summary_cap:
                         raise ValueError("Source record exceeds size limit")
-                    if not references(summary, allowed):
+                    refs = references(summary, allowed)
+                    output_meta["recognized_citation_count"] = len(refs)
+                    if not refs:
                         raise ValueError("Source record missing original citations")
                     break
                 except ValueError as exc:
-                    code = ("malformed_exhaustive_record" if str(exc) in {
+                    reason = str(exc)
+                    code = ("map_record_too_large" if reason in {
                         "Source record exceeds size limit", "Source summary exceeds maximum response size"}
-                        else "no_valid_citations" if str(exc) == "Source record missing original citations"
-                        else _citation_failure_code(exc))
-                    _validation_failure(retry_state, "exhaustive_map", attempt + 1, code)
+                        else "map_empty_record" if reason == "Source record is empty"
+                        else "map_no_valid_citations" if reason == "Source record missing original citations"
+                        else "map_invalid_citation_ids" if reason == "Citation outside current evidence"
+                        else "map_malformed_citation" if reason == "Malformed numeric citation"
+                        else "malformed_exhaustive_record")
+                    if isinstance(exc, MapRecordTooLarge):
+                        output_meta["output_char_limit"] = 8192
+                    _validation_failure(retry_state, "exhaustive_map", attempt + 1, code, output_meta)
                     if attempt:
                         raise ValueError("Source record cannot meet citation and size limits") from None
         records.append({"label": label, "source_id": source["id"], "source_name_untrusted": source["name"],
@@ -431,15 +481,22 @@ async def stream_chat(notebook_id, conversation_id, question, source_ids, histor
     retry_state = {"citation_retry_used": False, "citation_retry_succeeded": False,
                    "generation_attempts": 0, "validation_failures": []}
     source_groups = []
+    retrieval_diagnostics = {"embedding_index_model": None,
+                             "query_embedding_model": models.EMBEDDING_MODEL,
+                             "embedding_dimensions": {"index": None, "query": None},
+                             "semantic_candidates": 0, "semantic_hits": 0,
+                             "semantic_fallback_reason": None}
     try:
         if mode == "exhaustive":
             source_groups = await run_in_threadpool(retrieval.retrieve_by_source, notebook_id, question, source_ids,
                                                     prior_user_questions=recent_questions,
-                                                    max_sources=MAX_EXHAUSTIVE_SOURCES)
+                                                    max_sources=MAX_EXHAUSTIVE_SOURCES,
+                                                    diagnostics=retrieval_diagnostics)
             chunks = [chunk for _, group in source_groups for chunk in group]
         else:
             chunks = await run_in_threadpool(retrieval.retrieve, notebook_id, question, source_ids,
-                                             prior_user_questions=recent_questions)
+                                             prior_user_questions=recent_questions,
+                                             diagnostics=retrieval_diagnostics)
         retrieval_ms = int((time.monotonic() - start) * 1000)
         citations = retrieval.citations_for(chunks)
         if mode != "exhaustive":
@@ -511,6 +568,7 @@ async def stream_chat(notebook_id, conversation_id, question, source_ids, histor
                 "retrieval_mode": mode, "contextualized_retrieval": contextualized,
                 "eligible_sources": len(source_groups) if mode == "exhaustive" else None,
                 "represented_sources": len(per_source), "chunks_per_source": per_source,
+                **retrieval_diagnostics,
                 **retry_state,
                 "scores": {c["id"]: {"rrf": c["score"], "cosine": c["similarity"]} for c in chunks},
                 "min_similarity": retrieval.MIN_SIMILARITY, "evidence_budget_chars": retrieval.EVIDENCE_BUDGET,

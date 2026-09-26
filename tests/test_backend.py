@@ -8,6 +8,17 @@ from fastapi.testclient import TestClient
 
 from app import chat, db, documents, main, models, retrieval
 
+REBUILD_INDEX = retrieval.rebuild_embedding_index
+
+EXACT_TWO_PAPER_PROMPT = (
+    "For each of the two selected papers, create exactly one row in a comparative table. "
+    "Do not treat papers cited inside these two papers as additional selected studies. "
+    "Include: paper/title, model, parameter count, signal modality, channels, representation, "
+    "dataset, subjects, number of classes, validation method, accuracy/results, prediction "
+    "latency, training time, and limitations. If a value is not supported by that paper's "
+    "supplied evidence, write “Not reported in supplied evidence.” Keep facts from the two "
+    "papers separate and cite every row using the required current-source citations.")
+
 
 class FakeProvider:
     def __init__(self, answers=None, fail_at=None):
@@ -57,6 +68,8 @@ def env(tmp_path, monkeypatch):
     db.init_db()
     fake = FakeProvider()
     monkeypatch.setattr(models, "provider", fake)
+    monkeypatch.setattr(models, "embedding_model_digest", lambda: "test-digest")
+    monkeypatch.setattr(retrieval, "rebuild_embedding_index", lambda *args, **kwargs: None)
     with TestClient(main.app) as client:
         notebook = client.post("/api/notebooks", json={"title": "Research"}).json()
         yield client, notebook["id"], fake, tmp_path
@@ -73,8 +86,18 @@ def add_source(nid, text, name="Paper", vector=(1, 0), status="ready", enabled=1
         conn.execute("INSERT INTO sources(id,notebook_id,name,kind,status,enabled,created_at,updated_at) VALUES(?,?,?,'text',?,?,?,?)",
                      (sid, nid, name, status, enabled, stamp, stamp))
         conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)", (cid, sid, nid, 0, None, None, text, retrieval.pack_vector(vector)))
+        conn.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
+                     (cid, models.EMBEDDING_MODEL, "test-digest", len(vector), retrieval.pack_vector(vector)))
         conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (cid, text))
     return sid, cid
+
+
+def add_indexed_chunk(conn, cid, sid, nid, ordinal, text, vector=(1, 0)):
+    packed = retrieval.pack_vector(vector)
+    conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)", (cid, sid, nid, ordinal, None, None, text, packed))
+    conn.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
+                 (cid, models.EMBEDDING_MODEL, "test-digest", len(vector), packed))
+    conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (cid, text))
 
 
 def test_file_headers_and_activity(env):
@@ -114,6 +137,55 @@ def test_retrieval_scope_rrf_rescue_and_budget(env, monkeypatch):
     assert retrieval.retrieve(nid, "rarequartz", ["other-notebook"]) == []
     assert retrieval.budgeted([{"id": "x", "source_id": sid, "source_name": "a", "page": None, "text": "z" * 80}], 20) == []
     assert all(c["score"] > 0 for c in retrieval.retrieve(nid, "rarequartz"))
+
+
+def test_embedding_index_model_switch_and_rebuild(env, monkeypatch):
+    _, nid, fake, _ = env
+    revision = {"digest": "test-digest"}
+    monkeypatch.setattr(models, "embedding_model_digest", lambda: revision["digest"])
+    sid, cid = add_source(nid, "alpha evidence")
+    same = {}
+    assert [c["id"] for c in retrieval.retrieve(nid, "semantic only", [sid], diagnostics=same)] == [cid]
+    assert same["semantic_candidates"] == 1 and same["semantic_fallback_reason"] is None
+    monkeypatch.setattr(models, "EMBEDDING_MODEL", "switched-model")
+    revision["digest"] = "switched-digest"
+    stale = {}
+    assert retrieval.retrieve(nid, "semantic only", [sid], diagnostics=stale) == []
+    assert stale["semantic_fallback_reason"] == "stale_embedding_model"
+    lexical = {}
+    assert [c["id"] for c in retrieval.retrieve(nid, "alpha", [sid], diagnostics=lexical)] == [cid]
+    assert lexical["semantic_candidates"] == 0
+    assert lexical["semantic_fallback_reason"] == "stale_embedding_model"
+    assert REBUILD_INDEX(nid)["indexed_chunks"] == 1
+    rebuilt = {}
+    assert [c["id"] for c in retrieval.retrieve(nid, "semantic only", [sid], diagnostics=rebuilt)] == [cid]
+    assert rebuilt["embedding_index_model"] == "switched-model"
+    assert rebuilt["query_embedding_model"] == "switched-model"
+    assert rebuilt["embedding_dimensions"] == {"index": 2, "query": 2}
+    assert rebuilt["semantic_fallback_reason"] is None
+
+
+def test_embedding_index_revision_dimensions_and_no_hits_are_explicit(env, monkeypatch):
+    _, nid, fake, _ = env
+    sid, cid = add_source(nid, "alpha evidence")
+    monkeypatch.setattr(models, "embedding_model_digest", lambda: "new-digest")
+    stale = {}
+    assert retrieval.retrieve(nid, "semantic only", [sid], diagnostics=stale) == []
+    assert stale["semantic_fallback_reason"] == "stale_embedding_digest"
+    db.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
+               (cid, models.EMBEDDING_MODEL, "new-digest", 3, retrieval.pack_vector([1, 0, 0])))
+    mismatch = {}
+    assert retrieval.retrieve(nid, "semantic only", [sid], diagnostics=mismatch) == []
+    assert mismatch["embedding_dimensions"] == {"index": 3, "query": 2}
+    assert mismatch["semantic_fallback_reason"] == "dimension_mismatch"
+    db.execute("UPDATE chunk_embeddings SET dimensions=2,embedding=? WHERE chunk_id=? AND model_digest=?",
+               (retrieval.pack_vector([1, 0]), cid, "new-digest"))
+    fake.embed = lambda texts: [[0.0, 1.0] for _ in texts]
+    no_hits = {}
+    assert [c["id"] for c in retrieval.retrieve(nid, "alpha", [sid], diagnostics=no_hits)] == [cid]
+    assert no_hits["semantic_candidates"] == 1
+    assert no_hits["semantic_hits"] == 0
+    assert no_hits["semantic_fallback_reason"] == "no_semantic_hits"
 
 
 def test_retrieval_intent_and_bounded_followup_query(env):
@@ -307,10 +379,15 @@ def test_exhaustive_router_is_narrow():
                      "List each study and its accuracy",
                      "For each source, give model, classes, dataset and accuracy",
                      "Make a table covering all selected sources",
-                     "Summarize each of the 11 studies"):
+                     "Summarize each of the 11 studies",
+                     "For each selected paper, create one row",
+                     "One row for each paper", "Exactly one row per selected paper",
+                     "Compare each selected source", "For every selected source",
+                     "For each of the selected papers, report the result"):
         assert retrieval.retrieval_mode(question) == "exhaustive"
+    assert retrieval.retrieval_mode(EXACT_TWO_PAPER_PROMPT) == "exhaustive"
     for question in ("What does paper X report?", "What accuracy did SSAE achieve?",
-                     "Compare LDA and SSAE"):
+                     "Compare LDA and SSAE", "Compare the accuracy reported in these papers"):
         assert retrieval.retrieval_mode(question) == "focused"
     assert retrieval.retrieval_mode("What are the main themes across these sources?") == "coverage"
 
@@ -356,6 +433,29 @@ def test_diagnosis_two_sources_two_cited_table_rows(env, monkeypatch):
     assert '"citation": 1' in final_input and '"citation": 2' in final_input
 
 
+def test_exact_two_paper_prompt_reaches_two_maps_and_one_synthesis(env, monkeypatch):
+    client, nid, _, _ = env
+    first, _ = add_source(nid, "Alpha paper model and dataset", name="Alpha")
+    second, _ = add_source(nid, "Beta paper model and dataset", name="Beta")
+    for index, sid in enumerate((first, second)):
+        db.execute("UPDATE sources SET created_at=? WHERE id=?", (f"2026-01-01T00:00:{index:02d}Z", sid))
+    provider = ScriptedProvider([
+        "Model: Alpha [1]\nDataset: Alpha [1]",
+        "Model: Beta [2]\nDataset: Beta [2]",
+        "| Source | Model | Evidence |\n|---|---|---|\n"
+        "| S1 Alpha | Alpha | [1] |\n| S2 Beta | Beta | [2] |",
+    ])
+    monkeypatch.setattr(models, "provider", provider)
+    result = events(client.post(f"/api/notebooks/{nid}/chat",
+                                json={"question": EXACT_TWO_PAPER_PROMPT, "source_ids": [first, second]}))
+    assert result[-1]["type"] == "done"
+    assert len(provider.calls) == 3
+    coverage = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]
+    assert coverage["retrieval_mode"] == "exhaustive"
+    assert coverage["eligible_sources"] == coverage["represented_sources"] == 2
+    assert coverage["generation_attempts"] == 1
+
+
 def test_diagnosis_parser_and_row_failure_categories():
     assert chat.references("(citation 1) and source 1", {1}) == set()
     assert chat.references("**Supported [1, 2]** and [1-2]", {1, 2}) == {1, 2}
@@ -396,9 +496,7 @@ def test_diagnosis_map_to_final_citation_numbers_remain_stable(env, monkeypatch)
         second = db.uid()
         text = f"{name} second distinct result"
         with db.connection() as conn:
-            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
-                         (second, sid, nid, 1, None, None, text, retrieval.pack_vector([1, 0])))
-            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (second, text))
+            add_indexed_chunk(conn, second, sid, nid, 1, text)
         sources.append(sid)
     provider = ScriptedProvider(["Alpha second result [2].", "Beta second result [4].",
                                  "| Source | Result | Evidence |\n|---|---|---|\n"
@@ -457,9 +555,7 @@ def test_exhaustive_retrieval_is_bounded_and_keeps_empty_source_record(env):
         for index in range(1, 6):
             cid = db.uid()
             text = f"method distinct finding {index}"
-            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
-                         (cid, sid, nid, index, None, None, text, retrieval.pack_vector([1, 0])))
-            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (cid, text))
+            add_indexed_chunk(conn, cid, sid, nid, index, text)
     empty, _ = add_source(nid, "irrelevant", vector=(-1, 0))
     groups = retrieval.retrieve_by_source(nid, "Compare every paper", source_ids=[sid, empty])
     assert [source["id"] for source, _ in groups] == [sid, empty]
@@ -510,8 +606,9 @@ def test_exhaustive_rejects_omitted_row_and_oversized_input(env, monkeypatch):
     assert received[-1]["reason"] == "source_completeness"
     assert len(provider.calls) == 3
     assert client.get(f"/api/notebooks/{nid}/messages").json() == []
-    assert client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]["validation_failures"] == [
-        {"stage": "exhaustive_synthesis", "attempt": 1, "code": "missing_source_row"}]
+    failure = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]["validation_failures"][0]
+    assert (failure["stage"], failure["attempt"], failure["code"]) == ("exhaustive_synthesis", 1, "missing_source_row")
+    assert (failure["expected_source_count"], failure["parsed_row_count"], failure["missing_source_count"]) == (2, 1, 1)
     monkeypatch.setattr(chat, "MAX_SYNTHESIS_INPUT_CHARS", 100)
     provider = ScriptedProvider(["Alpha [1]", "Beta [2]"])
     monkeypatch.setattr(models, "provider", provider)
@@ -646,6 +743,9 @@ def test_embedding_validation_and_atomic_ingestion(env):
     fake.embed = lambda texts: [[1., 0.] for _ in texts]
     documents.process_source(sid)
     assert db.row("SELECT status FROM sources WHERE id=?", (sid,))["status"] == "ready"
+    assert db.row("SELECT e.model_name,e.model_digest,e.dimensions FROM chunk_embeddings e "
+                  "JOIN chunks c ON c.id=e.chunk_id WHERE c.source_id=?", (sid,)) == {
+        "model_name": models.EMBEDDING_MODEL, "model_digest": "test-digest", "dimensions": 2}
 
 
 def test_upload_lifecycle_additive_schema(env):
@@ -659,8 +759,12 @@ def test_upload_lifecycle_additive_schema(env):
     assert uploaded.status_code == 202
     sid = uploaded.json()["id"]
     assert db.row("SELECT status FROM sources WHERE id=?", (sid,))["status"] == "ready"
+    old_chunk = db.row("SELECT id FROM chunks WHERE source_id=?", (sid,))["id"]
     assert client.patch(f"/api/sources/{sid}/toggle").json() == {"enabled": False}
     assert client.post(f"/api/sources/{sid}/retry").status_code == 202
+    assert db.row("SELECT COUNT(*) AS n FROM chunk_embeddings WHERE chunk_id=?", (old_chunk,))["n"] == 0
+    assert db.row("SELECT COUNT(*) AS n FROM chunk_embeddings e JOIN chunks c ON c.id=e.chunk_id "
+                  "WHERE c.source_id=?", (sid,))["n"] == 1
     assert client.delete(f"/api/sources/{sid}").status_code == 204
     assert client.get(f"/api/files/{sid}").status_code == 404
 
@@ -846,9 +950,7 @@ def test_escaped_chat_question_and_history_never_start_oversized_generation(env)
                          (source, nid, f"escaped {i}", db.now(), db.now()))
             chunk = db.uid()
             text = '"\\' * 900
-            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
-                         (chunk, source, nid, 0, None, None, text, retrieval.pack_vector([1, 0])))
-            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (chunk, text))
+            add_indexed_chunk(conn, chunk, source, nid, 0, text)
     response = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "ordinary question"}))
     assert response[-1]["type"] == "error"
     assert "too large" in response[-1]["message"]

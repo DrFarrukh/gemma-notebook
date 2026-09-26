@@ -17,7 +17,11 @@ def retrieval_mode(question):
     """Route explicit source-complete requests before general corpus coverage."""
     q = question.lower()
     subject = r"(?:papers?|stud(?:y|ies)|sources?)"
-    if (re.search(rf"\b(?:one|1)\s+row\s+per\s+{subject}\b", q) or
+    selected = rf"(?:\d+\s+|one\s+|two\s+|three\s+)?selected\s+{subject}"
+    if (re.search(rf"\bfor\s+(?:each|every)\s+(?:of\s+the\s+)?{selected}\b", q) or
+            re.search(rf"\b(?:one|1|exactly\s+one)\s+row\s+(?:per|for\s+each)\s+(?:selected\s+)?{subject}\b", q) or
+            re.search(rf"\b(?:compare|list|summari[sz]e)\s+(?:each|every)\s+{selected}\b", q) or
+            re.search(rf"\b(?:one|1)\s+row\s+per\s+{subject}\b", q) or
             re.search(rf"\b(?:compare|list|summari[sz]e)\s+(?:each|every)\s+(?:of\s+the\s+)?(?:\d+\s+)?{subject}\b", q) or
             re.search(rf"\bfor\s+each\s+{subject}\b", q) or
             re.search(rf"\b(?:complete|comprehensive|exhaustive)\s+table\b.*\b(?:all|every|each)\b.*\b{subject}\b", q) or
@@ -71,7 +75,7 @@ def cosine(a, b):
     return dot / (na * nb) if na and nb else 0.0
 
 
-def scoped_chunks(notebook_id, source_ids=None):
+def scoped_chunks(notebook_id, source_ids=None, model_digest=None):
     if source_ids == []:
         return []
     params = [notebook_id]
@@ -79,7 +83,15 @@ def scoped_chunks(notebook_id, source_ids=None):
     if source_ids is not None:
         clause += f" AND c.source_id IN ({','.join('?' for _ in source_ids)})"
         params.extend(source_ids)
-    return db.rows(f"SELECT c.*,s.name AS source_name FROM chunks c JOIN sources s ON s.id=c.source_id WHERE {clause} ORDER BY s.created_at,s.id,c.ordinal,c.id", params)
+    if model_digest:
+        return db.rows(f"SELECT c.*,s.name AS source_name,e.embedding AS semantic_embedding,"
+                       f"e.dimensions AS index_dimensions FROM chunks c JOIN sources s ON s.id=c.source_id "
+                       f"LEFT JOIN chunk_embeddings e ON e.chunk_id=c.id AND e.model_name=? AND e.model_digest=? "
+                       f"WHERE {clause} ORDER BY s.created_at,s.id,c.ordinal,c.id",
+                       [models.EMBEDDING_MODEL, model_digest, *params])
+    return db.rows(f"SELECT c.*,s.name AS source_name,NULL AS semantic_embedding,NULL AS index_dimensions "
+                   f"FROM chunks c JOIN sources s ON s.id=c.source_id WHERE {clause} "
+                   f"ORDER BY s.created_at,s.id,c.ordinal,c.id", params)
 
 
 def scoped_sources(notebook_id, source_ids=None):
@@ -91,6 +103,36 @@ def scoped_sources(notebook_id, source_ids=None):
         clause += f" AND id IN ({','.join('?' for _ in source_ids)})"
         params.extend(source_ids)
     return db.rows(f"SELECT id,name FROM sources WHERE {clause} ORDER BY created_at,id", params)
+
+
+def rebuild_embedding_index(notebook_id=None, batch_size=16):
+    """Build the current model revision in the background; queries use lexical fallback meanwhile."""
+    digest = models.embedding_model_digest()
+    if not digest:
+        return {"status": "model_digest_unavailable", "indexed_chunks": 0}
+    params = [models.EMBEDDING_MODEL, digest]
+    clause = ""
+    if notebook_id is not None:
+        clause = " AND c.notebook_id=?"
+        params.append(notebook_id)
+    missing = db.rows("SELECT c.id,c.text FROM chunks c JOIN sources s ON s.id=c.source_id "
+                      "LEFT JOIN chunk_embeddings e ON e.chunk_id=c.id AND e.model_name=? AND e.model_digest=? "
+                      "WHERE s.status='ready' AND e.chunk_id IS NULL" + clause + " ORDER BY c.id", params)
+    indexed = 0
+    for start in range(0, len(missing), batch_size):
+        batch = missing[start:start + batch_size]
+        vectors = models.provider.embed([item["text"] for item in batch])
+        dimension = models.validate_vectors(vectors, len(batch))
+        if models.embedding_model_digest() != digest:
+            return {"status": "model_changed", "indexed_chunks": indexed}
+        with db.connection() as conn:
+            for item, vector in zip(batch, vectors):
+                conn.execute("INSERT OR IGNORE INTO chunk_embeddings(chunk_id,model_name,model_digest,dimensions,embedding) "
+                             "SELECT c.id,?,?,?,? FROM chunks c JOIN sources s ON s.id=c.source_id "
+                             "WHERE c.id=? AND s.status='ready'",
+                             (models.EMBEDDING_MODEL, digest, dimension, pack_vector(vector), item["id"]))
+                indexed += 1
+    return {"status": "ready", "indexed_chunks": indexed}
 
 
 def _tokens(text):
@@ -132,12 +174,70 @@ def budgeted(chunks, budget=None):
     return selected
 
 
-def _rank_candidates(notebook_id, query, lexical_query, candidates, source_ids, mode):
-    vector = models.provider.embed([query])
-    models.validate_vectors(vector, 1)
-    similarities = {c["id"]: cosine(vector[0], unpack_vector(c["embedding"])) for c in candidates}
-    semantic = sorted(candidates, key=lambda c: (-similarities[c["id"]], c["id"]))
+def _index_models(notebook_id, source_ids):
+    params = [notebook_id]
+    clause = ""
+    if source_ids is not None:
+        clause = f" AND c.source_id IN ({','.join('?' for _ in source_ids)})"
+        params.extend(source_ids)
+    return db.rows("SELECT DISTINCT e.model_name,e.model_digest,e.dimensions FROM chunk_embeddings e "
+                   "JOIN chunks c ON c.id=e.chunk_id WHERE c.notebook_id=?" + clause, params)
+
+
+def _rank_candidates(notebook_id, query, lexical_query, candidates, source_ids, mode,
+                     diagnostics=None, model_digest=None):
+    index_rows = _index_models(notebook_id, source_ids)
+    names = {row["model_name"] for row in index_rows}
+    index_model = (models.EMBEDDING_MODEL if any(row["model_name"] == models.EMBEDDING_MODEL and
+                                                 row["model_digest"] == model_digest for row in index_rows)
+                   else next(iter(names)) if len(names) == 1 else "mixed" if names else None)
+    similarities = {c["id"]: 0.0 for c in candidates}
+    semantic = []
+    query_dimensions = None
+    reason = None
+    indexed = [c for c in candidates if c["semantic_embedding"] is not None]
+    if not model_digest:
+        reason = "model_digest_unavailable"
+    elif not indexed:
+        reason = ("stale_embedding_model" if names and models.EMBEDDING_MODEL not in names else
+                  "stale_embedding_digest" if names else "missing_embedding_index")
+    else:
+        try:
+            vectors = models.provider.embed([query])
+            query_dimensions = models.validate_vectors(vectors, 1)
+            vector = vectors[0]
+            if not any(vector):
+                reason = "zero_query_vector"
+            else:
+                compatible = [c for c in indexed if c["index_dimensions"] == query_dimensions and
+                              len(c["semantic_embedding"]) == query_dimensions * 4]
+                if not compatible:
+                    reason = "dimension_mismatch"
+                else:
+                    semantic = [c for c in compatible if any(unpack_vector(c["semantic_embedding"]))]
+                    if not semantic:
+                        reason = "zero_document_vectors"
+                    for c in semantic:
+                        similarities[c["id"]] = cosine(vector, unpack_vector(c["semantic_embedding"]))
+                    semantic.sort(key=lambda c: (-similarities[c["id"]], c["id"]))
+                    if len(semantic) < len(candidates) and reason is None:
+                        reason = "partial_embedding_index"
+                    elif semantic and not any(similarities[c["id"]] >= MIN_SIMILARITY for c in semantic):
+                        reason = "no_semantic_hits"
+        except Exception:
+            reason = "query_embedding_failed"
+            semantic = []
     semantic_rank = {c["id"]: i for i, c in enumerate(semantic if mode != "focused" else semantic[:80], 1)}
+    if diagnostics is not None:
+        dimensions = {row["dimensions"] for row in index_rows
+                      if row["model_name"] == models.EMBEDDING_MODEL and row["model_digest"] == model_digest}
+        diagnostics.update({"embedding_index_model": index_model,
+                            "query_embedding_model": models.EMBEDDING_MODEL,
+                            "embedding_dimensions": {"index": next(iter(dimensions)) if len(dimensions) == 1 else None,
+                                                     "query": query_dimensions},
+                            "semantic_candidates": len(semantic),
+                            "semantic_hits": sum(similarities[c["id"]] >= MIN_SIMILARITY for c in semantic),
+                            "semantic_fallback_reason": reason})
     lexical_rank = {}
     fts = _fts_query(lexical_query)
     if fts:
@@ -206,7 +306,8 @@ def _coverage_selection(ranked, limit):
     return chosen
 
 
-def _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions):
+def _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions,
+                diagnostics=None, model_digest=None):
     search_query = contextualize_retrieval_query(query, prior_user_questions)
     # A new explicit term in the current turn should dominate lexical matching;
     # pronoun-only turns borrow lexical terms from bounded user-question history.
@@ -215,32 +316,37 @@ def _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_que
                                         (_tokens(search_query) - FOLLOWUP_WORDS)))
     else:
         lexical_query = query
-    return _rank_candidates(notebook_id, search_query, lexical_query, candidates, source_ids, mode)
+    return _rank_candidates(notebook_id, search_query, lexical_query, candidates, source_ids, mode,
+                            diagnostics, model_digest)
 
 
-def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questions=()):
-    candidates = scoped_chunks(notebook_id, source_ids)
+def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questions=(), diagnostics=None):
+    digest = models.embedding_model_digest()
+    candidates = scoped_chunks(notebook_id, source_ids, digest)
     if not candidates:
         return []
     mode = retrieval_mode(query)
-    ranked = _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions)
+    ranked = _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions,
+                         diagnostics, digest)
     if mode != "focused":
         return _coverage_selection(ranked, limit)
     return _focused_selection(ranked, 12 if limit is None else limit)
 
 
 def retrieve_by_source(notebook_id, query, source_ids=None, prior_user_questions=(),
-                       chunks_per_source=3, source_budget=5800, max_sources=None):
+                       chunks_per_source=3, source_budget=5800, max_sources=None, diagnostics=None):
     """One hybrid ranking pass, then bounded non-overlapping evidence per eligible source."""
     sources = scoped_sources(notebook_id, source_ids)
     if not sources:
         return []
     if max_sources is not None and len(sources) > max_sources:
         raise ValueError("Too many selected sources for a source-complete answer")
-    candidates = scoped_chunks(notebook_id, source_ids)
+    digest = models.embedding_model_digest()
+    candidates = scoped_chunks(notebook_id, source_ids, digest)
     grouped = {source["id"]: [] for source in sources}
     if candidates:
-        ranked = _rank_query(notebook_id, query, candidates, source_ids, "coverage", prior_user_questions)
+        ranked = _rank_query(notebook_id, query, candidates, source_ids, "coverage", prior_user_questions,
+                             diagnostics, digest)
         for item in ranked:
             grouped[item["source_id"]].append(item)
     result = []

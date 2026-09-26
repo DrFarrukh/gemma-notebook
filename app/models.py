@@ -134,6 +134,18 @@ class OllamaProvider:
 provider: Provider = OllamaProvider()
 
 
+def embedding_model_digest():
+    """Exact installed model revision; unknown revisions cannot share a semantic index."""
+    try:
+        with httpx.Client(timeout=3) as client:
+            response = client.get(f"{OLLAMA_URL}/api/tags")
+            response.raise_for_status()
+            return next((item.get("digest") for item in response.json().get("models", [])
+                         if item.get("name") == EMBEDDING_MODEL), None)
+    except Exception:
+        return None
+
+
 def safe_error(exc):
     if isinstance(exc, httpx.TimeoutException):
         return "Local model timed out; please retry."

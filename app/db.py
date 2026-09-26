@@ -55,6 +55,13 @@ def init_db():
           notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
           ordinal INTEGER NOT NULL, page INTEGER, section TEXT, text TEXT NOT NULL, embedding BLOB
         );
+        CREATE TABLE IF NOT EXISTS chunk_embeddings (
+          chunk_id TEXT NOT NULL REFERENCES chunks(id) ON DELETE CASCADE,
+          model_name TEXT NOT NULL, model_digest TEXT NOT NULL,
+          dimensions INTEGER NOT NULL, embedding BLOB NOT NULL,
+          PRIMARY KEY(chunk_id,model_name,model_digest)
+        );
+        CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_model ON chunk_embeddings(model_name,model_digest);
         CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(chunk_id UNINDEXED, text);
         CREATE TABLE IF NOT EXISTS conversations (
           id TEXT PRIMARY KEY, notebook_id TEXT NOT NULL UNIQUE REFERENCES notebooks(id) ON DELETE CASCADE,

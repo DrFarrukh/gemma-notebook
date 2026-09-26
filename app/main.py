@@ -1,12 +1,13 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import threading
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import chat as generation, db, documents, models
+from . import chat as generation, db, documents, models, retrieval
 
 STATIC_DIR = Path(__file__).parent / "static"
 MAX_FILE_BYTES = 50 * 1024 * 1024
@@ -20,6 +21,8 @@ async def lifespan(_app):
             conn.execute("UPDATE sources SET status='queued', error='Processing was interrupted; retry the source.' WHERE id=?", (source["id"],))
             row = conn.execute("SELECT notebook_id FROM sources WHERE id=?", (source["id"],)).fetchone()
             db.touch_notebook(conn, row["notebook_id"])
+    threading.Thread(target=retrieval.rebuild_embedding_index, daemon=True,
+                     name="embedding-index-rebuild").start()
     yield
 
 

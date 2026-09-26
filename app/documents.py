@@ -112,11 +112,14 @@ def process_source(source_id):
         chunks = split_pages(pages)
         vectors = []
         dimension = None
+        embedding_digest = models.embedding_model_digest()
         for offset in range(0, len(chunks), 24):
             batch = models.provider.embed([c["text"] for c in chunks[offset:offset + 24]])
             dimension = models.validate_vectors(batch, len(chunks[offset:offset + 24]), dimension)
             vectors.extend(batch)
         models.validate_vectors(vectors, len(chunks), dimension)
+        if embedding_digest != models.embedding_model_digest():
+            embedding_digest = None
         with db.connection() as conn:
             conn.execute("DELETE FROM chunk_fts WHERE chunk_id IN (SELECT id FROM chunks WHERE source_id=?)", (source_id,))
             conn.execute("DELETE FROM chunks WHERE source_id=?", (source_id,))
@@ -124,6 +127,10 @@ def process_source(source_id):
                 chunk_id = db.uid()
                 conn.execute("INSERT INTO chunks(id,source_id,notebook_id,ordinal,page,section,text,embedding) VALUES(?,?,?,?,?,?,?,?)",
                              (chunk_id, source_id, source["notebook_id"], chunk["ordinal"], chunk["page"], None, chunk["text"], struct.pack(f"<{len(vector)}f", *vector)))
+                if embedding_digest:
+                    conn.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
+                                 (chunk_id, models.EMBEDDING_MODEL, embedding_digest,
+                                  len(vector), struct.pack(f"<{len(vector)}f", *vector)))
                 conn.execute("INSERT INTO chunk_fts(chunk_id,text) VALUES(?,?)", (chunk_id, chunk["text"]))
             count = sum(len(p["text"]) for p in pages)
             conn.execute("UPDATE sources SET status='ready', scanned=0, error=NULL, char_count=?, page_count=?, updated_at=? WHERE id=?",

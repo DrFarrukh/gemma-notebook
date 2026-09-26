@@ -44,7 +44,7 @@ def validation_state():
      {"S1": {1}, "S2": {2}}, "missing_source_row", 1),
     ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S1 Alpha | [1] |",
      {"S1": {1}, "S2": {2}}, "duplicate_source_row", 1),
-    ("Claim [1].", {"S1": {1}}, "source_completeness_failure", 1),
+    ("Claim [1].", {"S1": {1}}, "unparseable_source_rows", 1),
 ])
 def test_final_attempt_reason_codes(monkeypatch, draft, source_refs, code, attempts):
     provider = ScriptedProvider([draft, draft])
@@ -59,17 +59,19 @@ def test_final_attempt_reason_codes(monkeypatch, draft, source_refs, code, attem
     expected = chat.SourceCompletenessError if attempts == 1 else chat.CitationValidationError
     with pytest.raises(expected):
         asyncio.run(consume())
-    assert state["validation_failures"] == [
-        {"stage": "exhaustive_synthesis", "attempt": index, "code": code}
-        for index in range(1, attempts + 1)]
+    assert [(item["stage"], item["attempt"], item["code"])
+            for item in state["validation_failures"]] == [
+        ("exhaustive_synthesis", index, code) for index in range(1, attempts + 1)]
     assert len(provider.calls) == attempts
     assert draft not in json.dumps(state)
 
 
 @pytest.mark.parametrize(("draft", "code"), [
-    ("No supported fact", "no_valid_citations"),
-    ("Fact [9]", "invalid_citation_ids"),
-    ("X" * 801, "malformed_exhaustive_record"),
+    ("No supported fact", "map_no_valid_citations"),
+    ("Fact [9]", "map_invalid_citation_ids"),
+    ("", "map_empty_record"),
+    ("Fact [1,]", "map_malformed_citation"),
+    ("X" * 2398 + "[1]", "map_record_too_large"),
 ])
 def test_map_attempt_reason_codes(monkeypatch, draft, code):
     provider = ScriptedProvider([draft, "Fact [1]"])
@@ -80,9 +82,75 @@ def test_map_attempt_reason_codes(monkeypatch, draft, code):
              "page": None, "text": "Fact"}
     asyncio.run(chat._exhaustive_context("One row per source", [(source, [chunk])],
                                          chat.RunMetrics(), [], state))
-    assert state["validation_failures"] == [
-        {"stage": "exhaustive_map", "attempt": 1, "code": code}]
+    assert [(item["stage"], item["attempt"], item["code"])
+            for item in state["validation_failures"]] == [("exhaustive_map", 1, code)]
+    failure = state["validation_failures"][0]
+    assert failure["output_char_count"] == len(draft)
+    assert failure["output_char_limit"] == 2400
+    assert failure["allowed_citation_count"] == 1
     assert len(provider.calls) == 2
+
+
+def test_map_budget_accepts_valid_records_above_old_limit(monkeypatch):
+    source = {"id": "source-id", "name": "Alpha"}
+    chunk = {"id": "chunk-id", "source_id": "source-id", "source_name": "Alpha",
+             "page": None, "text": "Fact"}
+    for size in (801, 2400):
+        record = "X" * (size - 3) + "[1]"
+        provider = ScriptedProvider([record])
+        monkeypatch.setattr(models, "provider", provider)
+        state = validation_state()
+        _, messages, _ = asyncio.run(chat._exhaustive_context(
+            "One row per source", [(source, [chunk])], chat.RunMetrics(), [], state))
+        assert len(record) == size
+        assert record in messages[-1]["content"]
+        assert state["validation_failures"] == []
+        assert len(provider.calls) == 1
+        assert "COMPACT" in provider.calls[0][0]["content"]
+
+
+def test_map_stream_safety_ceiling_remains_8192(monkeypatch):
+    provider = ScriptedProvider(["X" * 8193, "Fact [1]"])
+    monkeypatch.setattr(models, "provider", provider)
+    source = {"id": "source-id", "name": "Alpha"}
+    chunk = {"id": "chunk-id", "source_id": "source-id", "source_name": "Alpha",
+             "page": None, "text": "Fact"}
+    state = validation_state()
+    asyncio.run(chat._exhaustive_context("One row per source", [(source, [chunk])],
+                                         chat.RunMetrics(), [], state))
+    failure = state["validation_failures"][0]
+    assert failure["code"] == "map_record_too_large"
+    assert failure["output_char_count"] == 8193
+    assert failure["output_char_limit"] == 8192
+
+
+@pytest.mark.parametrize(("answer", "code", "counts"), [
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S2 Beta | [2] |",
+     None, (2, 2, 0, 0, 0)),
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |",
+     "missing_source_row", (1, 1, 1, 0, 0)),
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S1 Alpha | [1] |",
+     "duplicate_source_row", (2, 1, 1, 1, 0)),
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| Beta | [2] |",
+     "unmatched_source_row", (2, 1, 1, 0, 1)),
+    ("Source | Evidence\n--- | ---\nS1 Alpha | [1]\nS2 Beta | [2]",
+     "unparseable_source_rows", (0, 0, 2, 0, 0)),
+    ("  | Source | Evidence |  \n  | :--- | ---: |  \n  | S1 Alpha | [1] |  \n  | S2 Beta | [2] |",
+     None, (2, 2, 0, 0, 0)),
+])
+def test_source_row_failure_counts(answer, code, counts):
+    refs = {"S1": {1}, "S2": {2}}
+    if code is None:
+        chat._validate_source_rows(answer, refs)
+        return
+    with pytest.raises(chat.SourceCompletenessError) as caught:
+        chat._validate_source_rows(answer, refs)
+    assert caught.value.code == code
+    details = caught.value.details
+    assert (details["parsed_row_count"], details["matched_source_count"],
+            details["missing_source_count"], details["duplicate_source_count"],
+            details["unmatched_row_count"]) == counts
+    assert details["expected_source_labels"] == ["S1", "S2"]
 
 
 def test_failed_attempt_codes_are_persisted_without_drafts(tmp_path, monkeypatch):
