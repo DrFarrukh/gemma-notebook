@@ -22,7 +22,12 @@ async function streamRequest(path, body, onEvent, signal) {
     if (!event || typeof event !== 'object' || typeof event.type !== 'string') {
       throw new Error('Malformed streaming response.');
     }
-    if (event.type === 'error') throw new Error(event.message || 'Generation failed.');
+    if (event.type === 'error') {
+      onEvent(event);
+      const error = new Error(event.message || 'Generation failed.');
+      error.reason = event.reason;
+      throw error;
+    }
     if (event.type === 'done') completed = true;
     onEvent(event);
     if (!completed && signal?.aborted) throw new DOMException('Generation stopped.', 'AbortError');

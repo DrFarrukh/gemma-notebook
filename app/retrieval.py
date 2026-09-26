@@ -10,6 +10,48 @@ from . import db, models
 MIN_SIMILARITY = float(os.getenv("RETRIEVAL_MIN_SIMILARITY", "0.35"))
 EVIDENCE_BUDGET = 42_000
 STOPWORDS = set("a an and are as at be by can do does for from how i in is it of on or our should the their this to was what when where which who why with you your about create concise comprehensive notebook overview key claims important evidence disagreements open questions useful faq guide structured study briefing source sources answer using only summarize".split())
+FOLLOWUP_WORDS = set("he him his she her hers they them their theirs it its that those these this same former latter other one ones previous".split())
+
+
+def retrieval_mode(question):
+    """Route explicit source-complete requests before general corpus coverage."""
+    q = question.lower()
+    subject = r"(?:papers?|stud(?:y|ies)|sources?)"
+    if (re.search(rf"\b(?:one|1)\s+row\s+per\s+{subject}\b", q) or
+            re.search(rf"\b(?:compare|list|summari[sz]e)\s+(?:each|every)\s+(?:of\s+the\s+)?(?:\d+\s+)?{subject}\b", q) or
+            re.search(rf"\bfor\s+each\s+{subject}\b", q) or
+            re.search(rf"\b(?:complete|comprehensive|exhaustive)\s+table\b.*\b(?:all|every|each)\b.*\b{subject}\b", q) or
+            re.search(rf"\btable\b.*\b(?:covering|for|across)\s+(?:all|every|each)\s+(?:selected\s+)?(?:\d+\s+)?{subject}\b", q)):
+        return "exhaustive"
+    if re.search(r"\b(?:across|among)\s+(?:all\s+|these\s+|the\s+)?(?:papers|studies|sources|authors)\b", q):
+        return "coverage"
+    if re.search(r"\b(?:each|all)\s+(?:of\s+)?(?:the\s+|these\s+)?(?:papers?|sources?|stud(?:y|ies)|authors?)\b", q):
+        return "coverage"
+    if re.search(r"\b(?:compare|comparison of)\s+(?:all\s+|the\s+|these\s+)?(?:papers|studies|sources)\b", q):
+        return "coverage"
+    if re.search(r"\b(?:common|main|shared)\s+themes\b", q):
+        return "coverage"
+    if re.search(r"\b(?:papers|studies|sources)\b.*\b(?:similarities|differences|agree|disagree)\b|\b(?:similarities|differences|agree|disagree)\b.*\b(?:papers|studies|sources)\b", q):
+        return "coverage"
+    if re.search(r"\b(?:connections|relationships)\s+(?:among|between)\s+authors\b", q):
+        return "coverage"
+    return "focused"
+
+
+def is_contextual_followup(question):
+    q = question.strip().lower()
+    if len(q.split()) > 18:
+        return False
+    return bool(re.match(r"^(?:and\b|about\b|what about\b|how about\b)", q) or
+                re.search(r"\b(?:he|him|his|she|her|hers|they|them|their|theirs|that|those|the former|the latter|the previous one|same)\b", q))
+
+
+def contextualize_retrieval_query(question, prior_user_questions=()):
+    """Bounded retrieval aid; never persisted or supplied as source evidence."""
+    if not is_contextual_followup(question) or not prior_user_questions:
+        return question
+    previous = [q.strip()[:500] for q in prior_user_questions[-2:] if q.strip()]
+    return " ".join([question] + previous) if previous else question
 
 
 def pack_vector(values):
@@ -38,6 +80,17 @@ def scoped_chunks(notebook_id, source_ids=None):
         clause += f" AND c.source_id IN ({','.join('?' for _ in source_ids)})"
         params.extend(source_ids)
     return db.rows(f"SELECT c.*,s.name AS source_name FROM chunks c JOIN sources s ON s.id=c.source_id WHERE {clause} ORDER BY s.created_at,s.id,c.ordinal,c.id", params)
+
+
+def scoped_sources(notebook_id, source_ids=None):
+    if source_ids == []:
+        return []
+    params = [notebook_id]
+    clause = "notebook_id=? AND status='ready' AND enabled=1"
+    if source_ids is not None:
+        clause += f" AND id IN ({','.join('?' for _ in source_ids)})"
+        params.extend(source_ids)
+    return db.rows(f"SELECT id,name FROM sources WHERE {clause} ORDER BY created_at,id", params)
 
 
 def _tokens(text):
@@ -79,17 +132,14 @@ def budgeted(chunks, budget=None):
     return selected
 
 
-def retrieve(notebook_id, query, source_ids=None, limit=12):
-    candidates = scoped_chunks(notebook_id, source_ids)
-    if not candidates:
-        return []
+def _rank_candidates(notebook_id, query, lexical_query, candidates, source_ids, mode):
     vector = models.provider.embed([query])
     models.validate_vectors(vector, 1)
     similarities = {c["id"]: cosine(vector[0], unpack_vector(c["embedding"])) for c in candidates}
     semantic = sorted(candidates, key=lambda c: (-similarities[c["id"]], c["id"]))
-    semantic_rank = {c["id"]: i for i, c in enumerate(semantic[:80], 1)}
+    semantic_rank = {c["id"]: i for i, c in enumerate(semantic if mode != "focused" else semantic[:80], 1)}
     lexical_rank = {}
-    fts = _fts_query(query)
+    fts = _fts_query(lexical_query)
     if fts:
         params = [fts, notebook_id]
         clause = ""
@@ -100,7 +150,7 @@ def retrieve(notebook_id, query, source_ids=None, limit=12):
                           "JOIN sources s ON s.id=c.source_id WHERE chunk_fts MATCH ? AND c.notebook_id=? "
                           f"AND s.notebook_id=c.notebook_id AND s.status='ready' AND s.enabled=1{clause} ORDER BY bm25(chunk_fts),c.id LIMIT 80", params)
         lexical_rank = {c["id"]: i for i, c in enumerate(matches, 1)}
-    meaningful = _tokens(query)
+    meaningful = _tokens(lexical_query)
     ranked = []
     for item in candidates:
         cid = item["id"]
@@ -113,7 +163,11 @@ def retrieve(notebook_id, query, source_ids=None, limit=12):
         ranked.append(item)
     ranked = [c for c in ranked if c["score"] > 0]
     ranked.sort(key=lambda c: (-c["score"], -c["similarity"], c["id"]))
-    ranked = ranked[:80]  # Only actual ranked candidates compete for diversity; no zero-score filler.
+    return ranked if mode != "focused" else ranked[:80]
+
+
+def _focused_selection(ranked, limit):
+    # Only actual ranked candidates compete for diversity; no zero-score filler.
     # Round-robin diverse sources before filling remaining slots from the ranked list.
     chosen = []
     seen_sources = set()
@@ -129,6 +183,76 @@ def retrieve(notebook_id, query, source_ids=None, limit=12):
             if len(chosen) >= limit:
                 break
     return budgeted(chosen)
+
+
+def _coverage_selection(ranked, limit):
+    # Each round visits every represented source before taking another chunk.
+    grouped = {}
+    for item in ranked:
+        grouped.setdefault(item["source_id"], []).append(item)
+    chosen = []
+    for round_index in range(2):
+        for source_chunks in grouped.values():
+            if limit is not None and len(chosen) >= limit:
+                return chosen
+            if sum(c["source_id"] == source_chunks[0]["source_id"] for c in chosen) > round_index:
+                continue
+            for item in source_chunks:
+                if item in chosen or any(_overlap(item, c) for c in chosen):
+                    continue
+                if len(budgeted(chosen + [item])) == len(chosen) + 1:
+                    chosen.append(item)
+                    break
+    return chosen
+
+
+def _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions):
+    search_query = contextualize_retrieval_query(query, prior_user_questions)
+    # A new explicit term in the current turn should dominate lexical matching;
+    # pronoun-only turns borrow lexical terms from bounded user-question history.
+    if search_query != query:
+        lexical_query = " ".join(sorted((_tokens(query) - FOLLOWUP_WORDS) or
+                                        (_tokens(search_query) - FOLLOWUP_WORDS)))
+    else:
+        lexical_query = query
+    return _rank_candidates(notebook_id, search_query, lexical_query, candidates, source_ids, mode)
+
+
+def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questions=()):
+    candidates = scoped_chunks(notebook_id, source_ids)
+    if not candidates:
+        return []
+    mode = retrieval_mode(query)
+    ranked = _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions)
+    if mode != "focused":
+        return _coverage_selection(ranked, limit)
+    return _focused_selection(ranked, 12 if limit is None else limit)
+
+
+def retrieve_by_source(notebook_id, query, source_ids=None, prior_user_questions=(),
+                       chunks_per_source=3, source_budget=5800, max_sources=None):
+    """One hybrid ranking pass, then bounded non-overlapping evidence per eligible source."""
+    sources = scoped_sources(notebook_id, source_ids)
+    if not sources:
+        return []
+    if max_sources is not None and len(sources) > max_sources:
+        raise ValueError("Too many selected sources for a source-complete answer")
+    candidates = scoped_chunks(notebook_id, source_ids)
+    grouped = {source["id"]: [] for source in sources}
+    if candidates:
+        ranked = _rank_query(notebook_id, query, candidates, source_ids, "coverage", prior_user_questions)
+        for item in ranked:
+            grouped[item["source_id"]].append(item)
+    result = []
+    for source in sources:
+        selected = []
+        for item in grouped[source["id"]]:
+            if len(selected) >= chunks_per_source:
+                break
+            if len(budgeted(selected + [item], source_budget)) == len(selected) + 1:
+                selected.append(item)
+        result.append((source, selected))
+    return result
 
 
 def citations_for(chunks):

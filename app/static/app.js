@@ -285,8 +285,8 @@ function updateContextMeter(promptTokens, evalTokens) {
   el.classList.remove('hidden');
   el.classList.toggle('warn', pct >= 75 && pct < 90);
   el.classList.toggle('danger', pct >= 90);
-  el.textContent = `Context ${pct}% · ${formatTokens(used)}/${formatTokens(state.numCtx)}`;
-  el.title = `${used.toLocaleString()} of ${state.numCtx.toLocaleString()} tokens used (${state.numCtx - used} remaining)`;
+  el.textContent = `Request ${pct}% · ${formatTokens(used)}/${formatTokens(state.numCtx)}`;
+  el.title = `${used.toLocaleString()} tokens in the most recent model request of ${state.numCtx.toLocaleString()} configured context tokens. This is not cumulative notebook or chat memory.`;
 }
 
 function renderGenerationStatus() {
@@ -315,6 +315,16 @@ async function sendQuestion(question) {
   try {
     await streamRequest(`/api/notebooks/${notebookId}/chat`, {question:question.trim(), source_ids:selectedSources()}, event => {
       if (event.type === 'citations') citations = event.citations;
+      if (event.type === 'retry') {
+        answer = '';
+        run.status = event.message || 'Retrying with source citations…';
+        if (originalView()) updateMessage(answerEl, answer, citations, true);
+        renderGenerationStatus();
+      }
+      if (event.type === 'error' && ['citation_validation', 'source_completeness'].includes(event.reason)) {
+        answer = '';
+        if (originalView()) updateMessage(answerEl, answer, citations, true);
+      }
       if (event.type === 'delta') { answer += event.text; if (originalView()) updateMessage(answerEl, answer, citations, true); }
       if (event.type === 'done' && event.metrics) {
         const {prompt_eval_count, eval_count} = event.metrics;
@@ -346,7 +356,9 @@ async function sendQuestion(question) {
       } catch (error) { toast(`Answer completed in ${title}; refresh to view history: ${error.message}`); }
     }
   } catch (error) {
-    if (originalView()) updateMessage(answerEl, `${answer}\n\n_${error.name === 'AbortError' ? 'Generation interrupted; refresh to check saved output.' : `Generation failed: ${error.message}`}_`, citations, false);
+    const failure = error.name === 'AbortError' ? 'Generation interrupted; refresh to check saved output.'
+      : ['citation_validation', 'source_completeness'].includes(error.reason) ? error.message : `Generation failed: ${error.message}`;
+    if (originalView()) updateMessage(answerEl, `${answer}\n\n_${failure}_`, citations, false);
     if (error.name === 'AbortError') toast(`Generation interrupted in ${title}; refresh to view history.`);
     else toast(`${title}: ${error.message}`);
   } finally {

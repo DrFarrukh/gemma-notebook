@@ -15,15 +15,16 @@ function uiHarness() {
   const listeners = {};
   function element() {
     const classes = new Set(['hidden']);
+    const children = [], actions = [];
     return {
       classList: {
         add: key => classes.add(key), remove: key => classes.delete(key),
         toggle(key, on) { if (on === undefined) on = !classes.has(key); if (on) classes.add(key); else classes.delete(key); },
         contains: key => classes.has(key)
       },
-      style: {}, scrollHeight: 0, scrollTop: 0, textContent: '', value: '', innerHTML: '',
-      lastElementChild: {append() {}},
-      append(child) { if (child.className === 'toast') toasts.push(child.textContent); },
+      style: {}, scrollHeight: 0, scrollTop: 0, textContent: '', value: '', innerHTML: '', children,
+      lastElementChild: {children: actions, append(child) { actions.push(child); }},
+      append(child) { children.push(child); if (child.className === 'toast') toasts.push(child.textContent); },
       remove() {}, showModal() { this.open = true; }, setAttribute(key, value) { this[key] = value; }, addEventListener() {}, querySelector() { return element(); }, querySelectorAll() { return []; }
     };
   }
@@ -52,7 +53,11 @@ function uiHarness() {
     },
     streamRequest: (path, body, onEvent, signal) => {
       const gate = deferred();
-      const stream = {path, body, onEvent, signal, resolve() { onEvent({type: 'done'}); gate.resolve(); }};
+      const stream = {path, body, onEvent, signal, resolve() { onEvent({type: 'done'}); gate.resolve(); },
+        fail(message, reason) {
+          onEvent({type: 'error', message, reason});
+          const error = new Error(message); error.reason = reason; gate.reject(error);
+        }};
       streams.push(stream);
       signal.addEventListener('abort', () => gate.reject(new DOMException('Stopped', 'AbortError')), {once: true});
       return gate.promise;
@@ -62,6 +67,52 @@ function uiHarness() {
   const state = vm.runInContext('state', context);
   return {context, state, node, notebooks, histories, requests, streams, toasts, pending, listeners, ready: new Promise(setImmediate)};
 }
+
+test('request meter labels the latest model request rather than chat memory', async () => {
+  const ui = uiHarness(); await ui.ready;
+  ui.state.numCtx = 16384;
+  ui.context.updateContextMeter(6000, 2000);
+  const meter = ui.node('#contextMeter');
+  assert.equal(meter.textContent, 'Request 49% · 8.0K/16.4K');
+  assert.match(meter.title, /most recent model request/);
+  assert.match(meter.title, /not cumulative notebook or chat memory/);
+  ui.context.updateContextMeter(1000, 1000);
+  assert.equal(meter.textContent, 'Request 12% · 2.0K/16.4K');
+});
+
+test('citation retry clears the draft and streams into the same assistant bubble', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  const chat = ui.context.sendQuestion('Make a diagram');
+  const stream = ui.streams[0], area = ui.node('#messages');
+  const answer = area.children.at(-1), initialCount = area.children.length;
+  stream.onEvent({type: 'delta', text: 'Invalid draft (citation 1)'});
+  assert.equal(answer._content, 'Invalid draft (citation 1)');
+  stream.onEvent({type: 'retry', reason: 'citation_validation', message: 'Retrying with source-citation formatting…'});
+  assert.equal(answer._content, '');
+  assert.match(ui.node('#chatStatus').textContent, /Retrying with source-citation formatting/);
+  stream.onEvent({type: 'delta', text: 'Grounded prose [1].'});
+  stream.resolve(); await chat;
+  assert.equal(area.children.length, initialCount);
+  assert.equal(area.children.at(-1), answer);
+  assert.equal(answer._content, 'Grounded prose [1].');
+  assert.equal(answer.lastElementChild.children.length, 1);
+});
+
+test('final citation rejection clears both invalid drafts and adds no answer actions', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  const chat = ui.context.sendQuestion('Make a diagram');
+  const stream = ui.streams[0], answer = ui.node('#messages').children.at(-1);
+  stream.onEvent({type: 'delta', text: 'First invalid draft'});
+  stream.onEvent({type: 'retry', reason: 'citation_validation', message: 'Retrying with source-citation formatting…'});
+  stream.onEvent({type: 'delta', text: 'Second invalid draft'});
+  stream.fail('Answer rejected: the model did not provide valid current source citations. Please retry or rephrase the request.', 'citation_validation');
+  await chat;
+  assert.doesNotMatch(answer._content, /First invalid draft|Second invalid draft|Generation failed/);
+  assert.match(answer._content, /Answer rejected: the model did not provide valid current source citations/);
+  assert.equal(answer.lastElementChild.children.length, 0);
+});
 
 test('grouped sparse citations open the correct source, page and excerpt', async () => {
   const ui = uiHarness(); await ui.ready;
@@ -183,7 +234,7 @@ test('chat Stop after changing notebook does not claim a server-side rollback', 
   await chat;
   assert.equal(ui.streams[0].signal.aborted, true);
   assert.equal(ui.state.detail.id, 'B');
-  assert.match(ui.toasts.at(-1), /Notebook A; refresh to check saved output/);
+  assert.match(ui.toasts.at(-1), /Generation interrupted in Notebook A; refresh to view history/);
 });
 
 test('late notebook selection responses cannot replace a newer view or start with old sources', async () => {

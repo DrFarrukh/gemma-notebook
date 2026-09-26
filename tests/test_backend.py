@@ -35,6 +35,20 @@ class FakeProvider:
         return 1234
 
 
+class ScriptedProvider(FakeProvider):
+    def __init__(self, answers):
+        super().__init__()
+        self.script = answers
+
+    async def stream(self, messages):
+        self.calls.append(messages)
+        answer = self.script[len(self.calls) - 1]
+        if isinstance(answer, Exception):
+            raise answer
+        yield models.ModelEvent("text", text=answer)
+        yield models.ModelEvent("metrics", metrics={"eval_count": 8})
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DATA_DIR", tmp_path)
@@ -102,6 +116,476 @@ def test_retrieval_scope_rrf_rescue_and_budget(env, monkeypatch):
     assert all(c["score"] > 0 for c in retrieval.retrieve(nid, "rarequartz"))
 
 
+def test_retrieval_intent_and_bounded_followup_query(env):
+    _, nid, fake, _ = env
+    add_source(nid, "Asim Waris reports a result")
+    embedded = []
+    fake.embed = lambda texts: embedded.extend(texts) or [[1.0, 0.0]]
+    history = ["Old unrelated question", "What does Asim Waris report?"]
+    assert retrieval.retrieval_mode("What classifier was used in paper X?") == "focused"
+    assert retrieval.retrieval_mode("What accuracy did the SSAE achieve between days?") == "focused"
+    assert retrieval.retrieval_mode("What are the main themes across these sources?") == "coverage"
+    assert retrieval.retrieval_mode("How is each author connected with the others across these papers?") == "coverage"
+    assert retrieval.retrieval_mode("Where do all of these sources agree and disagree?") == "coverage"
+    assert retrieval.contextualize_retrieval_query("What classifier was used in paper X?", history) == "What classifier was used in paper X?"
+    retrieval.retrieve(nid, "What classifier was used in paper X?", prior_user_questions=history)
+    assert embedded[-1] == "What classifier was used in paper X?"
+    retrieval.retrieve(nid, "And what about him?", prior_user_questions=["Too old", *history])
+    assert embedded[-1].startswith("And what about him?")
+    assert "What does Asim Waris report?" in embedded[-1]
+    assert "Old unrelated question" in embedded[-1]
+    assert "Too old" not in embedded[-1]
+    assert "Asim Waris" in retrieval.contextualize_retrieval_query("About Zia?", history)
+
+
+def test_explicit_new_entity_keeps_lexical_priority(env):
+    _, nid, _, _ = env
+    add_source(nid, "Asim Waris and I.K. Niazi collaborated")
+    _, farrukh = add_source(nid, "Farrukh collaborated on the project")
+    chosen = retrieval.retrieve(nid, "And Farrukh?", prior_user_questions=["How are Asim Waris and I.K. Niazi connected?"])
+    assert chosen[0]["id"] == farrukh
+
+
+def test_coverage_rounds_budget_and_source_scope(env, monkeypatch):
+    _, nid, _, _ = env
+    ids = []
+    for name in ("Alpha", "Beta", "Gamma"):
+        sid, first = add_source(nid, f"{name} methods and dataset first finding")
+        second = db.uid()
+        text = f"{name} methods and dataset second distinct finding"
+        with db.connection() as conn:
+            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
+                         (second, sid, nid, 1, None, None, text, retrieval.pack_vector([1, 0])))
+            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (second, text))
+        ids.append((sid, first, second))
+    disabled, _ = add_source(nid, "Disabled methods and dataset", enabled=0)
+    weak, _ = add_source(nid, "Unrelated content", vector=(-1, 0))
+    query = "What methods and datasets were used across the papers?"
+    chosen = retrieval.retrieve(nid, query)
+    assert len(chosen) == 6
+    assert {c["source_id"] for c in chosen[:3]} == {sid for sid, _, _ in ids}
+    assert {c["source_id"] for c in chosen[3:]} == {sid for sid, _, _ in ids}
+    assert all(sum(c["source_id"] == sid for c in chosen) == 2 for sid, _, _ in ids)
+    assert disabled not in {c["source_id"] for c in chosen}
+    assert weak not in {c["source_id"] for c in chosen}
+    selected = retrieval.retrieve(nid, query, source_ids=[ids[0][0], disabled, weak])
+    assert {c["source_id"] for c in selected} == {ids[0][0]}
+    focused = retrieval.retrieve(nid, "methods", source_ids=[ids[0][0], disabled])
+    assert {c["source_id"] for c in focused} == {ids[0][0]}
+    assert retrieval.retrieve(nid, query, source_ids=[]) == []
+    monkeypatch.setattr(retrieval, "EVIDENCE_BUDGET", len(retrieval.evidence_text(chosen[:3])))
+    budgeted = retrieval.retrieve(nid, query)
+    assert len(retrieval.evidence_text(budgeted)) <= retrieval.EVIDENCE_BUDGET
+    assert {c["source_id"] for c in budgeted} == {sid for sid, _, _ in ids}
+
+
+def test_coverage_can_exceed_focused_chunk_limit(env):
+    _, nid, _, _ = env
+    sources = []
+    for index in range(7):
+        sid, _ = add_source(nid, f"Study {index} methods first finding")
+        second = db.uid()
+        text = f"Study {index} methods second finding"
+        with db.connection() as conn:
+            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
+                         (second, sid, nid, 1, None, None, text, retrieval.pack_vector([1, 0])))
+            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (second, text))
+        sources.append(sid)
+    chosen = retrieval.retrieve(nid, "Compare methods across the studies")
+    assert len(chosen) == 14
+    assert set(sources) == {c["source_id"] for c in chosen[:7]}
+    assert set(sources) == {c["source_id"] for c in chosen[7:]}
+
+
+def test_chat_passes_bounded_user_history_to_retrieval(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Asim Waris and Farrukh collaborated")
+    conversation = db.row("SELECT id FROM conversations WHERE notebook_id=?", (nid,))["id"]
+    questions = ["First old question", "Second old question", "What does Asim Waris report?"]
+    with db.connection() as conn:
+        for question in questions:
+            conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)", (db.uid(), conversation, "user", question, "[]", db.now()))
+            conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)", (db.uid(), conversation, "assistant", "Prior assistant answer is not evidence", "[]", db.now()))
+    original = retrieval.retrieve
+    seen = []
+    def capture(*args, **kwargs):
+        seen.append(kwargs["prior_user_questions"])
+        return original(*args, **kwargs)
+    monkeypatch.setattr(retrieval, "retrieve", capture)
+    assert events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "And what about him?"}))[-1]["type"] == "done"
+    assert seen == [questions[-2:]]
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["retrieval_mode"] == "focused"
+    assert run["coverage"]["contextualized_retrieval"] is True
+    assert run["coverage"]["represented_sources"] == 1
+    assert sum(run["coverage"]["chunks_per_source"].values()) == 1
+    assert not any(text in json.dumps(run) for text in questions + ["And what about him?", "Prior assistant answer is not evidence", "Asim Waris and Farrukh collaborated"])
+
+
+@pytest.mark.parametrize("answer", ["A fact [1].", "Linked facts [1] and [2, 3]."])
+def test_valid_citations_complete_without_retry(env, monkeypatch, answer):
+    client, nid, _, _ = env
+    for name in ("Alpha", "Beta", "Gamma"):
+        add_source(nid, f"{name} evidence")
+    provider = ScriptedProvider([answer])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "What evidence?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "done"]
+    assert len(provider.calls) == 1
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["citation_retry_used"] is False
+    assert run["coverage"]["generation_attempts"] == 1
+
+
+@pytest.mark.parametrize("first", ["Only prose (citation 2).", "```mermaid\nA --> B [1]\n```", "Wrong current source [99]."])
+def test_citation_retry_reuses_evidence_and_persists_only_valid_answer(env, monkeypatch, first):
+    client, nid, _, _ = env
+    add_source(nid, "Alpha supported claim")
+    add_source(nid, "Beta supported claim")
+    provider = ScriptedProvider([first, "Supported answer [1, 2]."])
+    monkeypatch.setattr(models, "provider", provider)
+    original = retrieval.retrieve
+    retrieval_calls = []
+    def capture(*args, **kwargs):
+        retrieval_calls.append(args)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(retrieval, "retrieve", capture)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "What is supported?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "retry", "delta", "done"]
+    assert received[2]["reason"] == "citation_validation"
+    assert len(retrieval_calls) == 1
+    assert len(provider.calls) == 2
+    assert provider.calls[0][-1]["content"] == provider.calls[1][-1]["content"]
+    assert "previous response was rejected" in provider.calls[1][0]["content"]
+    assert first not in json.dumps(provider.calls[1])
+    saved = client.get(f"/api/notebooks/{nid}/messages").json()
+    assert [item["role"] for item in saved] == ["user", "assistant"]
+    assert saved[1]["content"] == "Supported answer [1, 2]."
+    assert first not in json.dumps(saved)
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["citation_retry_used"] is True
+    assert run["coverage"]["citation_retry_succeeded"] is True
+    assert run["coverage"]["generation_attempts"] == 2
+    assert run["metrics"]["stage_calls"] == {"chat": 1, "chat_citation_retry": 1}
+    assert first not in json.dumps(run)
+
+
+def test_citation_retry_stops_after_two_completed_invalid_answers(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Supported claim")
+    provider = ScriptedProvider(["Draft (citation 1)", "Still only source 1 prose"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "Claim?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "retry", "delta", "error"]
+    assert received[-1]["message"] == chat.CITATION_REJECTION
+    assert received[-1]["reason"] == "citation_validation"
+    assert len(provider.calls) == 2
+    assert client.get(f"/api/notebooks/{nid}/messages").json() == []
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["citation_retry_used"] is True
+    assert run["coverage"]["citation_retry_succeeded"] is False
+    assert run["coverage"]["validation_failures"] == [
+        {"stage": "chat", "attempt": 1, "code": "no_valid_citations"},
+        {"stage": "chat", "attempt": 2, "code": "no_valid_citations"}]
+
+
+def test_transport_error_does_not_retry_citation_generation(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Supported claim")
+    provider = ScriptedProvider([RuntimeError("transport interrupted")])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "Claim?"}))
+    assert [event["type"] for event in received] == ["citations", "error"]
+    assert len(provider.calls) == 1
+    assert client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]["citation_retry_used"] is False
+
+
+def test_exhaustive_router_is_narrow():
+    for question in ("Create a complete table for all papers",
+                     "Create a comprehensive table across all 11 papers",
+                     "One row per source", "Compare every paper",
+                     "List each study and its accuracy",
+                     "For each source, give model, classes, dataset and accuracy",
+                     "Make a table covering all selected sources",
+                     "Summarize each of the 11 studies"):
+        assert retrieval.retrieval_mode(question) == "exhaustive"
+    for question in ("What does paper X report?", "What accuracy did SSAE achieve?",
+                     "Compare LDA and SSAE"):
+        assert retrieval.retrieval_mode(question) == "focused"
+    assert retrieval.retrieval_mode("What are the main themes across these sources?") == "coverage"
+
+
+def test_diagnosis_one_source_cited_sentence(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Alpha reports a measured result", name="Alpha")
+    provider = ScriptedProvider(["Alpha reports a measured result [1]."])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "What does Alpha report?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "done"]
+    assert len(provider.calls) == 1
+    assert client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]["retrieval_mode"] == "focused"
+
+
+def test_diagnosis_one_source_one_cited_table_row(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Alpha reports a measured result", name="Alpha")
+    provider = ScriptedProvider(["Alpha result [1].",
+                                 "| Source | Result | Evidence |\n|---|---|---|\n| S1 Alpha | Measured result | [1] |"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert [event["type"] for event in received] == ["citations", "status", "delta", "done"]
+    assert len(provider.calls) == 2
+    assert client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]["retrieval_mode"] == "exhaustive"
+
+
+def test_diagnosis_two_sources_two_cited_table_rows(env, monkeypatch):
+    client, nid, _, _ = env
+    first, _ = add_source(nid, "Alpha reports result A", name="Alpha")
+    second, _ = add_source(nid, "Beta reports result B", name="Beta")
+    for index, sid in enumerate((first, second)):
+        db.execute("UPDATE sources SET created_at=? WHERE id=?", (f"2026-01-01T00:00:{index:02d}Z", sid))
+    provider = ScriptedProvider(["Alpha result [1].", "Beta result [2].",
+                                 "| Source | Result | Evidence |\n|---|---|---|\n"
+                                 "| S1 Alpha | Result A | [1] |\n| S2 Beta | Result B | [2] |"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert [event["type"] for event in received] == ["citations", "status", "delta", "done"]
+    assert [item["number"] for item in received[0]["citations"]] == [1, 2]
+    assert len(provider.calls) == 3
+    final_input = provider.calls[-1][-1]["content"]
+    assert '"citation": 1' in final_input and '"citation": 2' in final_input
+
+
+def test_diagnosis_parser_and_row_failure_categories():
+    assert chat.references("(citation 1) and source 1", {1}) == set()
+    assert chat.references("**Supported [1, 2]** and [1-2]", {1, 2}) == {1, 2}
+    assert chat.references("| S1 Alpha | claim | [1] |", {1}) == {1}
+    with pytest.raises(ValueError, match="Citation outside current evidence"):
+        chat.references("Unsupported [3]", {1, 2})
+    with pytest.raises(ValueError, match="Malformed numeric citation"):
+        chat.references("Malformed [1,]", {1})
+    row = "| Source | Claim | Evidence |\n|---|---|---|\n| S1 Alpha | claim | [1] |"
+    chat._validate_source_rows(row, {"S1": {1}})
+    with pytest.raises(chat.CitationValidationError):
+        chat._validate_source_rows("Intro [1]\n" + row.replace("| [1] |", "| empty |"), {"S1": {1}})
+    with pytest.raises(chat.SourceCompletenessError):
+        chat._validate_source_rows(row.replace("S1 Alpha", "Alpha"), {"S1": {1}})
+
+
+def test_diagnosis_valid_global_citation_but_uncited_table_row_is_rejected(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Alpha reports a measured result", name="Alpha")
+    uncited_row = ("Intro grounded in current evidence [1].\n"
+                   "| Source | Result | Evidence |\n|---|---|---|\n"
+                   "| S1 Alpha | Measured result | empty |")
+    provider = ScriptedProvider(["Alpha result [1].", uncited_row, uncited_row])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert [event["type"] for event in received] == ["citations", "status", "delta", "retry", "delta", "error"]
+    assert received[-1]["message"] == chat.CITATION_REJECTION
+    assert chat.references(uncited_row, {1}) == {1}
+    assert len(provider.calls) == 3
+
+
+def test_diagnosis_map_to_final_citation_numbers_remain_stable(env, monkeypatch):
+    client, nid, _, _ = env
+    sources = []
+    for index, name in enumerate(("Alpha", "Beta")):
+        sid, _ = add_source(nid, f"{name} first result", name=name)
+        db.execute("UPDATE sources SET created_at=? WHERE id=?", (f"2026-01-01T00:00:{index:02d}Z", sid))
+        second = db.uid()
+        text = f"{name} second distinct result"
+        with db.connection() as conn:
+            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
+                         (second, sid, nid, 1, None, None, text, retrieval.pack_vector([1, 0])))
+            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (second, text))
+        sources.append(sid)
+    provider = ScriptedProvider(["Alpha second result [2].", "Beta second result [4].",
+                                 "| Source | Result | Evidence |\n|---|---|---|\n"
+                                 "| S1 Alpha | Second result | [2] |\n| S2 Beta | Second result | [4] |"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert received[-1]["type"] == "done"
+    assert [c["number"] for c in received[0]["citations"]] == [1, 2, 3, 4]
+    payload = json.loads(provider.calls[-1][-1]["content"].removeprefix("<synthesis_input_json>\n").removesuffix("\n</synthesis_input_json>"))
+    assert [[e["citation"] for e in record["original_evidence"]] for record in payload["source_records"]] == [[1, 2], [3, 4]]
+
+
+def test_exhaustive_source_records_scope_and_missing_fields(env, monkeypatch):
+    client, nid, _, _ = env
+    selected = [add_source(nid, f"{name} reports a method", name=name)[0]
+                for name in ("Alpha", "Beta", "Gamma")]
+    for index, sid in enumerate(selected):
+        db.execute("UPDATE sources SET created_at=? WHERE id=?", (f"2026-01-01T00:00:{index:02d}Z", sid))
+    disabled, _ = add_source(nid, "Disabled reports a method", enabled=0)
+    unselected, _ = add_source(nid, "Other reports a method")
+    final = ("| Source | Accuracy | Evidence |\n| --- | --- | --- |\n" +
+             "\n".join(f"| S{i} {name} | Not reported in supplied evidence | [{i}] |"
+                       for i, name in enumerate(("Alpha", "Beta", "Gamma"), 1)))
+    provider = ScriptedProvider([f"Method reported; accuracy Not reported in supplied evidence [{i}]."
+                                 for i in range(1, 4)] + [final])
+    monkeypatch.setattr(models, "provider", provider)
+    query = "Create a complete table with accuracy for all papers"
+    received = events(client.post(f"/api/notebooks/{nid}/chat",
+                                  json={"question": query, "source_ids": selected + [disabled]}))
+    assert [event["type"] for event in received] == ["citations", "status", "delta", "done"]
+    assert {c["source_id"] for c in received[0]["citations"]} == set(selected)
+    assert disabled not in {c["source_id"] for c in received[0]["citations"]}
+    assert unselected not in {c["source_id"] for c in received[0]["citations"]}
+    assert len(provider.calls) == 4
+    synthesis = provider.calls[-1][-1]["content"]
+    payload = json.loads(synthesis.removeprefix("<synthesis_input_json>\n").removesuffix("\n</synthesis_input_json>"))
+    assert payload["selected_source_count"] == 3
+    assert payload["required_source_labels"] == ["S1", "S2", "S3"]
+    assert [r["source_id"] for r in payload["source_records"]] == selected
+    assert all(len(r["original_evidence"]) == 1 for r in payload["source_records"])
+    assert all("Not reported in supplied evidence" in r["summary_untrusted"] for r in payload["source_records"])
+    saved = client.get(f"/api/notebooks/{nid}/messages").json()
+    assert saved[-1]["content"] == final
+    assert all("Not reported in supplied evidence" in row for row in final.splitlines()[2:])
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["retrieval_mode"] == "exhaustive"
+    assert run["coverage"]["eligible_sources"] == 3
+    assert query not in json.dumps(run)
+    assert "reports a method" not in json.dumps(run)
+
+
+def test_exhaustive_retrieval_is_bounded_and_keeps_empty_source_record(env):
+    _, nid, _, _ = env
+    sid, _ = add_source(nid, "method first finding")
+    with db.connection() as conn:
+        for index in range(1, 6):
+            cid = db.uid()
+            text = f"method distinct finding {index}"
+            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
+                         (cid, sid, nid, index, None, None, text, retrieval.pack_vector([1, 0])))
+            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (cid, text))
+    empty, _ = add_source(nid, "irrelevant", vector=(-1, 0))
+    groups = retrieval.retrieve_by_source(nid, "Compare every paper", source_ids=[sid, empty])
+    assert [source["id"] for source, _ in groups] == [sid, empty]
+    assert len(groups[0][1]) == 3
+    assert groups[1][1] == []
+    assert len(retrieval.evidence_text(groups[0][1])) <= 6000
+
+
+def test_exhaustive_final_citation_retry_and_completeness(env, monkeypatch):
+    client, nid, _, _ = env
+    alpha, _ = add_source(nid, "Alpha method", name="Alpha")
+    beta, _ = add_source(nid, "Beta method", name="Beta")
+    for index, sid in enumerate((alpha, beta)):
+        db.execute("UPDATE sources SET created_at=? WHERE id=?", (f"2026-01-01T00:00:{index:02d}Z", sid))
+    valid = ("| Source | Method | Evidence |\n| --- | --- | --- |\n"
+             "| S1 Alpha | Method A | [1] |\n| S2 Beta | Method B | [2] |")
+    provider = ScriptedProvider(["Alpha method [1]", "Beta method [2]",
+                                 "| Source | Method | Evidence |\n|---|---|---|\n| S1 Alpha | A (citation 1) | none |\n| S2 Beta | B (citation 2) | none |",
+                                 valid])
+    monkeypatch.setattr(models, "provider", provider)
+    original = retrieval.retrieve_by_source
+    calls = []
+    def capture(*args, **kwargs):
+        calls.append(args)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(retrieval, "retrieve_by_source", capture)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "Compare every paper"}))
+    assert [event["type"] for event in received] == ["citations", "status", "delta", "retry", "delta", "done"]
+    assert len(calls) == 1
+    assert len(provider.calls) == 4
+    assert provider.calls[2][-1]["content"] == provider.calls[3][-1]["content"]
+    assert client.get(f"/api/notebooks/{nid}/messages").json()[-1]["content"] == valid
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["generation_attempts"] == 2
+    assert run["metrics"]["stage_calls"] == {"exhaustive_map": 2, "exhaustive_synthesis": 1,
+                                                "exhaustive_synthesis_citation_retry": 1}
+
+
+def test_exhaustive_rejects_omitted_row_and_oversized_input(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Alpha method")
+    add_source(nid, "Beta method")
+    provider = ScriptedProvider(["Alpha [1]", "Beta [2]",
+                                 "| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert received[-1]["message"] == chat.COMPLETENESS_REJECTION
+    assert received[-1]["reason"] == "source_completeness"
+    assert len(provider.calls) == 3
+    assert client.get(f"/api/notebooks/{nid}/messages").json() == []
+    assert client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]["validation_failures"] == [
+        {"stage": "exhaustive_synthesis", "attempt": 1, "code": "missing_source_row"}]
+    monkeypatch.setattr(chat, "MAX_SYNTHESIS_INPUT_CHARS", 100)
+    provider = ScriptedProvider(["Alpha [1]", "Beta [2]"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert received[-1]["type"] == "error"
+    assert "size budget" in received[-1]["message"]
+    assert len(provider.calls) == 2  # No final synthesis request bypasses the size gate.
+    monkeypatch.setattr(chat, "MAX_SYNTHESIS_INPUT_CHARS", 42_000)
+    provider = ScriptedProvider([])
+    monkeypatch.setattr(models, "provider", provider)
+    huge = "Create a complete table for all papers " + "\x01" * 5000
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": huge}))
+    assert received[-1]["type"] == "error"
+    assert "size budget" in received[-1]["message"]
+    assert provider.calls == []  # Escaped map input is checked before the first model call.
+
+
+def test_exhaustive_row_check_rejects_extra_or_fenced_rows():
+    two_rows = ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S2 Beta | [2] |")
+    chat._validate_source_rows(two_rows, {"S1": {1}, "S2": {2}})
+    with pytest.raises(chat.SourceCompletenessError):
+        chat._validate_source_rows(two_rows + "\n| Alpha again | [1] |", {"S1": {1}, "S2": {2}})
+    with pytest.raises(chat.SourceCompletenessError):
+        chat._validate_source_rows("```\n" + two_rows + "\n```\nSummary [1]", {"S1": {1}, "S2": {2}})
+
+
+def test_exhaustive_map_rejects_uncited_record_without_synthesis(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "Alpha method")
+    provider = ScriptedProvider(["Uncited method", "Still uncited method"])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert received[-1]["type"] == "error"
+    assert received[-1]["reason"] == "citation_validation"
+    assert len(provider.calls) == 2
+    assert client.get(f"/api/notebooks/{nid}/messages").json() == []
+
+
+def test_exhaustive_eleven_sources_and_unavailable_record(env, monkeypatch):
+    client, nid, _, _ = env
+    for index in range(11):
+        sid, _ = add_source(nid, f"Study {index} reports a method", name=f"Study {index}")
+        db.execute("UPDATE sources SET created_at=? WHERE id=?", (f"2026-01-01T00:00:{index:02d}Z", sid))
+    final = ("| Source | Finding | Evidence |\n|---|---|---|\n" +
+             "\n".join(f"| S{i} Study {i - 1} | Method | [{i}] |" for i in range(1, 12)))
+    provider = ScriptedProvider([f"Method [{i}]" for i in range(1, 12)] + [final])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "Summarize each of the 11 studies"}))
+    assert received[-1]["type"] == "done"
+    assert len(received[0]["citations"]) == 11
+    assert len(provider.calls) == 12
+    payload = json.loads(provider.calls[-1][-1]["content"].removeprefix("<synthesis_input_json>\n").removesuffix("\n</synthesis_input_json>"))
+    assert payload["selected_source_count"] == 11
+    assert len(payload["source_records"]) == 11
+
+    client.delete(f"/api/notebooks/{nid}/messages")
+    disabled = [row["id"] for row in retrieval.scoped_sources(nid)][1:]
+    for sid in disabled:
+        db.execute("UPDATE sources SET enabled=0 WHERE id=?", (sid,))
+    missing, _ = add_source(nid, "irrelevant text", name="No relevant data", vector=(-1, 0))
+    db.execute("UPDATE sources SET created_at=? WHERE id=?", ("2026-01-02T00:00:00Z", missing))
+    no_data = ("| Source | Finding | Evidence |\n|---|---|---|\n"
+               "| S1 Study 0 | Method | [1] |\n"
+               "| S2 No relevant data | Not reported in supplied evidence | |")
+    provider = ScriptedProvider(["Method [1]", no_data])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "One row per source"}))
+    assert received[-1]["type"] == "done"
+    assert len(provider.calls) == 2
+    payload = json.loads(provider.calls[-1][-1]["content"].removeprefix("<synthesis_input_json>\n").removesuffix("\n</synthesis_input_json>"))
+    assert payload["source_records"][1]["source_id"] == missing
+    assert payload["source_records"][1]["original_evidence"] == []
+
+
 def test_chat_stream_history_citations_failure_and_diagnostics(env):
     client, nid, fake, root = env
     sid, cid = add_source(nid, "key scientific fact")
@@ -110,7 +594,7 @@ def test_chat_stream_history_citations_failure_and_diagnostics(env):
     assert first[0]["citations"][0]["chunk_id"] == cid
     fake.answers = ["Evidence [1]", "Wrong [2]"]
     second = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "key follow-up?"}))
-    assert [e["type"] for e in second] == ["citations", "delta", "error"]
+    assert [e["type"] for e in second] == ["citations", "delta", "retry", "delta", "error"]
     assert len(client.get(f"/api/notebooks/{nid}/messages").json()) == 2
     assert all(m["role"] != "assistant" for m in fake.calls[1])
     assert "prior_user_questions_not_evidence" in fake.calls[1][-1]["content"]
@@ -565,6 +1049,10 @@ def test_cancelled_generators_record_without_vram_or_success(env, monkeypatch):
                 gen = chat.stream_artifact(nid, "Notebook", "summary", None)
             await cancel(gen, provider, first_events)
             assert db.row("SELECT status FROM generation_runs ORDER BY created_at DESC,id DESC LIMIT 1")["status"] == "cancelled"
+            if stage == "chat":
+                assert len(provider.calls) == 1
+                run = db.row("SELECT coverage FROM generation_runs ORDER BY created_at DESC,id DESC LIMIT 1")
+                assert json.loads(run["coverage"])["citation_retry_used"] is False
             assert db.row("SELECT COUNT(*) AS n FROM messages")["n"] == 0
             assert db.row("SELECT COUNT(*) AS n FROM artifacts")["n"] == 0
         provider = Blocking(1)

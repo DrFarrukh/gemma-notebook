@@ -58,6 +58,16 @@ test('upstream error and malformed JSON reject and cancel the reader', async () 
   }
 });
 
+test('citation rejection error exposes its reason after delivering the reset event', async () => {
+  const stream = mockStream(['{"type":"error","reason":"citation_validation","message":"Answer rejected"}\n',
+                             '{"type":"done"}\n']);
+  const received = [];
+  await assert.rejects(streamRequest('/chat', {}, event => received.push(event)), error =>
+    error.reason === 'citation_validation' && error.message === 'Answer rejected');
+  assert.deepEqual(received.map(event => event.type), ['error']);
+  assert.equal(stream.cancelled, true);
+});
+
 test('aborting while processing cancels the reader and rejects', async () => {
   const controller = new AbortController();
   const stream = mockStream(['{"type":"delta","text":"partial"}\n', '{"type":"done"}\n'], {signal: controller.signal});
