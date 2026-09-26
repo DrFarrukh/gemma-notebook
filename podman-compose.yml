@@ -8,7 +8,9 @@ services:
     environment:
       OLLAMA_URL: ${OLLAMA_URL:-http://127.0.0.1:11434}
       GENERATION_MODEL: ${GENERATION_MODEL:-gemma4:e4b}
-      NUM_CTX: ${NUM_CTX:-4096}
+      NUM_CTX: ${NUM_CTX:-16384}
+      TEMPERATURE: ${TEMPERATURE:-0.2}
+      THINKING: ${THINKING:-auto}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-embeddinggemma:300m} # nomic-embed-text:latest, qwen3-embedding:0.6b
       RETRIEVAL_MIN_SIMILARITY: ${RETRIEVAL_MIN_SIMILARITY:-0.35}
       DATA_DIR: /app/data

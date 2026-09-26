@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Gemma Notebook</title>
-  <link rel="stylesheet" href="/assets/style.css?v=chat-drafts-20260926">
+  <link rel="stylesheet" href="/assets/style.css?v=model-controls-20260926">
 </head>
 <body>
   <!-- Global Navigation Header -->
@@ -49,6 +49,8 @@
       <span class="context-meter hidden" id="contextMeter" title="Most recent model request token usage"></span>
       <select class="model-select" id="modelSelect" title="Generation model"></select>
       <select class="ctx-select" id="ctxSelect" title="Context window size"></select>
+      <select class="thinking-select" id="thinkingSelect" title="Thinking mode"></select>
+      <select class="temperature-select" id="temperatureSelect" title="Generation temperature"></select>
       <div class="status" id="modelStatus" title="Ollama Local Model Status">
         <span class="beacon-ring"></span>
         <span class="status-label">Local AI</span>
@@ -339,6 +341,6 @@
   <span id="chatStatus" class="hidden" aria-hidden="true"></span>
   <script src="/assets/markdown.js" defer></script>
   <script src="/assets/stream.js" defer></script>
-  <script src="/assets/app.js?v=chat-drafts-20260926" defer></script>
+  <script src="/assets/app.js?v=model-controls-20260926" defer></script>
 </body>
 </html>

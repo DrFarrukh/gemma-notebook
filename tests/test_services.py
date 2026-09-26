@@ -144,6 +144,7 @@ def test_citations_include_page_and_excerpt():
     chunks = [{"id":"c1", "source_id":"s1", "source_name":"Paper", "page":3, "text":"Evidence" * 200}]
     citation = services.citations_for(chunks)[0]
     assert citation["number"] == 1
+    assert citation["namespace"] == "C"
     assert citation["page"] == 3
     assert len(citation["excerpt"]) == 700
 
@@ -167,7 +168,8 @@ def test_ollama_stream_uses_configured_model_and_context(monkeypatch):
     assert asyncio.run(collect()) == ["ok"]
     assert requests[0][0] == "/api/chat"
     assert requests[0][1]["model"] == services.GENERATION_MODEL
-    assert requests[0][1]["options"]["num_ctx"] == int(os.getenv("NUM_CTX", "4096"))
+    assert requests[0][1]["options"]["num_ctx"] == int(os.getenv("NUM_CTX", "16384"))
+    assert requests[0][1]["options"]["temperature"] == float(os.getenv("TEMPERATURE", "0.2"))
 
 
 import pytest

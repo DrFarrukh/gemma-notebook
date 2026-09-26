@@ -10,21 +10,38 @@ import httpx
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 GENERATION_MODEL = os.getenv("GENERATION_MODEL", "gemma4:e4b")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
-NUM_CTX = int(os.getenv("NUM_CTX", "4096"))
+NUM_CTX = int(os.getenv("NUM_CTX", "16384"))
 NUM_PREDICT = 4096
+TEMPERATURE = float(os.getenv("TEMPERATURE", "0.2"))
+THINKING = os.getenv("THINKING", "auto").strip().lower()
 METRIC_KEYS = ("total_duration", "load_duration", "prompt_eval_duration", "eval_duration",
                "prompt_eval_count", "eval_count")
 CONTEXT_OPTIONS = (2048, 4096, 8192, 16384, 32768, 65536)
+THINKING_OPTIONS = ("auto", "off", "on")
+TEMPERATURE_OPTIONS = (0.0, 0.2, 0.4, 0.7, 1.0)
 MIN_NUM_CTX, MAX_NUM_CTX = min(CONTEXT_OPTIONS), max(CONTEXT_OPTIONS)
 
+if THINKING not in THINKING_OPTIONS:
+    THINKING = "auto"
 
-def set_generation_settings(model=None, num_ctx=None):
-    """Update the active generation model and/or context window; validated by caller."""
-    global GENERATION_MODEL, NUM_CTX
+
+def set_generation_settings(model=None, num_ctx=None, temperature=None, thinking=None):
+    """Update active generation settings; values are validated by the API caller."""
+    global GENERATION_MODEL, NUM_CTX, TEMPERATURE, THINKING
     if model is not None:
         GENERATION_MODEL = model
     if num_ctx is not None:
         NUM_CTX = num_ctx
+    if temperature is not None:
+        TEMPERATURE = temperature
+    if thinking is not None:
+        THINKING = thinking
+
+
+def thinking_value(mode=None):
+    """Translate the UI mode to Ollama's optional top-level think value."""
+    selected = THINKING if mode is None else mode
+    return {"auto": None, "off": False, "on": True}[selected]
 
 
 @dataclass
@@ -36,7 +53,7 @@ class ModelEvent:
 
 class Provider(Protocol):
     def embed(self, texts: list[str]) -> list[list[float]]: ...
-    def stream(self, messages: list[dict]) -> AsyncIterator[ModelEvent]: ...
+    def stream(self, messages: list[dict], think: bool | str | None = None) -> AsyncIterator[ModelEvent]: ...
     async def health(self) -> dict: ...
     async def vram_bytes(self) -> int | None: ...
     async def list_models(self) -> list[str]: ...
@@ -67,9 +84,13 @@ class OllamaProvider:
             validate_vectors(vectors, len(texts))
             return vectors
 
-    async def stream(self, messages):
+    async def stream(self, messages, think=None):
         payload = {"model": GENERATION_MODEL, "messages": messages, "stream": True,
-                   "options": {"num_ctx": NUM_CTX, "num_predict": NUM_PREDICT}, "keep_alive": "15m"}
+                   "options": {"num_ctx": NUM_CTX, "num_predict": NUM_PREDICT,
+                               "temperature": TEMPERATURE}, "keep_alive": "15m"}
+        effective_think = thinking_value() if think is None else think
+        if effective_think is not None:
+            payload["think"] = effective_think
         async with httpx.AsyncClient(timeout=httpx.Timeout(600, connect=10)) as client:
             async with client.stream("POST", f"{OLLAMA_URL}/api/chat", json=payload) as response:
                 response.raise_for_status()

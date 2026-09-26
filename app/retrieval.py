@@ -155,16 +155,16 @@ def _overlap(a, b):
 
 def evidence_line(chunk, number):
     # Serialize once for both the prompt and its exact character budget.
-    return json.dumps({"citation": number, "source": chunk["source_name"], "page": chunk["page"],
+    return json.dumps({"citation": f"C{number}", "source": chunk["source_name"], "page": chunk["page"],
                        "text": chunk["text"]}, ensure_ascii=False)
 
 
-def budgeted(chunks, budget=None):
+def budgeted(chunks, budget=None, number_start=1):
     if budget is None:
         budget = EVIDENCE_BUDGET
     selected, used = [], 0
     for chunk in chunks:
-        cost = len(evidence_line(chunk, len(selected) + 1)) + (1 if selected else 0)
+        cost = len(evidence_line(chunk, number_start + len(selected))) + (1 if selected else 0)
         if used + cost > budget:
             continue
         if any(_overlap(chunk, old) for old in selected):
@@ -333,14 +333,34 @@ def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questio
     return _focused_selection(ranked, 12 if limit is None else limit)
 
 
+def exhaustive_budget(source_count):
+    if source_count <= 2:
+        return 5, 12_000
+    if source_count <= 5:
+        return 4, 9_000
+    if source_count <= 10:
+        return 3, 6_000
+    return 2, 4_800
+
+
+def _section_key(item):
+    section = item.get("section")
+    if not isinstance(section, str) or section.strip().lower() in {"", "unknown"}:
+        return None
+    return section.strip().casefold()
+
+
 def retrieve_by_source(notebook_id, query, source_ids=None, prior_user_questions=(),
-                       chunks_per_source=3, source_budget=5800, max_sources=None, diagnostics=None):
+                       chunks_per_source=None, source_budget=None, max_sources=None, diagnostics=None):
     """One hybrid ranking pass, then bounded non-overlapping evidence per eligible source."""
     sources = scoped_sources(notebook_id, source_ids)
     if not sources:
         return []
     if max_sources is not None and len(sources) > max_sources:
         raise ValueError("Too many selected sources for a source-complete answer")
+    default_chunks, default_budget = exhaustive_budget(len(sources))
+    chunks_per_source = default_chunks if chunks_per_source is None else chunks_per_source
+    source_budget = default_budget if source_budget is None else source_budget
     digest = models.embedding_model_digest()
     candidates = scoped_chunks(notebook_id, source_ids, digest)
     grouped = {source["id"]: [] for source in sources}
@@ -350,19 +370,47 @@ def retrieve_by_source(notebook_id, query, source_ids=None, prior_user_questions
         for item in ranked:
             grouped[item["source_id"]].append(item)
     result = []
+    selected_counts, selected_chars, selected_sections = {}, {}, {}
+    citation_start = 1
     for source in sources:
-        selected = []
-        for item in grouped[source["id"]]:
+        ranked = grouped[source["id"]]
+        selected, seen_sections = [], set()
+        # First take the best eligible chunk from each named section in rank order.
+        for item in ranked:
+            section = _section_key(item)
+            if section is None or section in seen_sections:
+                continue
             if len(selected) >= chunks_per_source:
                 break
-            if len(budgeted(selected + [item], source_budget)) == len(selected) + 1:
+            if len(budgeted(selected + [item], source_budget, citation_start)) == len(selected) + 1:
                 selected.append(item)
+                seen_sections.add(section)
+        # Then fill any remaining slots with the original hybrid ranking.
+        for item in ranked:
+            if len(selected) >= chunks_per_source:
+                break
+            if item in selected or any(_overlap(item, old) for old in selected):
+                continue
+            if len(budgeted(selected + [item], source_budget, citation_start)) == len(selected) + 1:
+                selected.append(item)
+        selected_counts[source["id"]] = len(selected)
+        selected_chars[source["id"]] = sum(
+            len(evidence_line(item, citation_start + index)) + (1 if index else 0)
+            for index, item in enumerate(selected))
+        selected_sections[source["id"]] = len({_section_key(item) for item in selected if _section_key(item)})
         result.append((source, selected))
+        citation_start += len(selected)
+    if diagnostics is not None:
+        diagnostics.update({"chunks_per_source_selected": selected_counts,
+                            "evidence_chars_per_source": selected_chars,
+                            "distinct_sections_per_source": selected_sections,
+                            "exhaustive_chunks_per_source_limit": chunks_per_source,
+                            "exhaustive_source_evidence_budget_chars": source_budget})
     return result
 
 
 def citations_for(chunks):
-    return [{"number": i, "chunk_id": c["id"], "source_id": c["source_id"],
+    return [{"number": i, "namespace": "C", "chunk_id": c["id"], "source_id": c["source_id"],
              "source_name": c["source_name"], "page": c["page"], "excerpt": c["text"][:700]}
             for i, c in enumerate(chunks, 1)]
 

@@ -56,6 +56,8 @@ class ArtifactIn(BaseModel):
 class SettingsIn(BaseModel):
     generation_model: str | None = Field(default=None, min_length=1, max_length=200)
     num_ctx: int | None = None
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    thinking: str | None = None
 
 
 def require_notebook(notebook_id):
@@ -81,6 +83,8 @@ async def health():
                    "generation_ready": False, "embedding_ready": False,
                    "model_loaded": False, "gpu_percent": None, "cpu_percent": None}
     result["num_ctx"] = models.NUM_CTX
+    result["temperature"] = models.TEMPERATURE
+    result["thinking"] = models.THINKING
     return result
 
 
@@ -91,12 +95,15 @@ async def get_settings():
     except Exception:
         available = []
     return {"generation_model": models.GENERATION_MODEL, "embedding_model": models.EMBEDDING_MODEL,
-            "num_ctx": models.NUM_CTX, "available_models": available, "context_options": list(models.CONTEXT_OPTIONS)}
+            "num_ctx": models.NUM_CTX, "temperature": models.TEMPERATURE, "thinking": models.THINKING,
+            "available_models": available, "context_options": list(models.CONTEXT_OPTIONS),
+            "temperature_options": list(models.TEMPERATURE_OPTIONS),
+            "thinking_options": list(models.THINKING_OPTIONS)}
 
 
 @app.post("/api/settings")
 async def update_settings(payload: SettingsIn):
-    model, num_ctx = None, None
+    model, num_ctx, temperature, thinking = None, None, None, None
     if payload.generation_model is not None:
         try:
             available = await models.provider.list_models()
@@ -109,8 +116,15 @@ async def update_settings(payload: SettingsIn):
         if payload.num_ctx not in models.CONTEXT_OPTIONS:
             raise HTTPException(400, f"num_ctx must be one of {models.CONTEXT_OPTIONS}")
         num_ctx = payload.num_ctx
-    models.set_generation_settings(model, num_ctx)
-    return {"generation_model": models.GENERATION_MODEL, "num_ctx": models.NUM_CTX}
+    if payload.temperature is not None:
+        temperature = payload.temperature
+    if payload.thinking is not None:
+        if payload.thinking not in models.THINKING_OPTIONS:
+            raise HTTPException(400, f"thinking must be one of {models.THINKING_OPTIONS}")
+        thinking = payload.thinking
+    models.set_generation_settings(model, num_ctx, temperature, thinking)
+    return {"generation_model": models.GENERATION_MODEL, "num_ctx": models.NUM_CTX,
+            "temperature": models.TEMPERATURE, "thinking": models.THINKING}
 
 
 @app.get("/api/notebooks/{notebook_id}/diagnostics")

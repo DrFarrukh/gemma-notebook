@@ -15,7 +15,7 @@ class ScriptedProvider:
     def embed(self, texts):
         return [[1.0, 0.0] for _ in texts]
 
-    async def stream(self, messages):
+    async def stream(self, messages, think=None):
         self.calls.append(messages)
         yield models.ModelEvent("text", text=self.outputs[len(self.calls) - 1])
         yield models.ModelEvent("metrics", metrics={"eval_count": 1})
@@ -31,20 +31,20 @@ def validation_state():
 
 @pytest.mark.parametrize(("draft", "source_refs", "code", "attempts"), [
     ("Uncited claim", None, "no_valid_citations", 2),
-    ("Claim [9]", None, "invalid_citation_ids", 2),
-    ("Claim [1,]", None, "malformed_citation", 2),
-    ("Claim [1].\n| Source | Evidence |\n|---|---|\n| S1 Alpha | none |",
+    ("Claim [C9]", None, "invalid_citation_ids", 2),
+    ("Claim [C1,]", None, "malformed_citation", 2),
+    ("Claim [C1].\n| Source | Evidence |\n|---|---|\n| S1 Alpha | none |",
      {"S1": {1}}, "uncited_source_row", 2),
-    ("Claim [1].\n| Source | Evidence |\n|---|---|\n"
+    ("Claim [C1].\n| Source | Evidence |\n|---|---|\n"
      "| S1 Alpha | Not reported in supplied evidence |",
      {"S1": {1}}, "uncited_source_row", 2),
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [2] |\n| S2 Beta | [1] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C2] |\n| S2 Beta | [C1] |",
      {"S1": {1}, "S2": {2}}, "invalid_citation_ids", 2),
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |",
      {"S1": {1}, "S2": {2}}, "missing_source_row", 1),
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S1 Alpha | [1] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |\n| S1 Alpha | [C1] |",
      {"S1": {1}, "S2": {2}}, "duplicate_source_row", 1),
-    ("Claim [1].", {"S1": {1}}, "unparseable_source_rows", 1),
+    ("Claim [C1].", {"S1": {1}}, "unparseable_source_rows", 1),
 ])
 def test_final_attempt_reason_codes(monkeypatch, draft, source_refs, code, attempts):
     provider = ScriptedProvider([draft, draft])
@@ -68,13 +68,13 @@ def test_final_attempt_reason_codes(monkeypatch, draft, source_refs, code, attem
 
 @pytest.mark.parametrize(("draft", "code"), [
     ("No supported fact", "map_no_valid_citations"),
-    ("Fact [9]", "map_invalid_citation_ids"),
+    ("Fact [C9]", "map_invalid_citation_ids"),
     ("", "map_empty_record"),
-    ("Fact [1,]", "map_malformed_citation"),
-    ("X" * 2398 + "[1]", "map_record_too_large"),
+    ("Fact [C1,]", "map_malformed_citation"),
+    ("X" * 2398 + "[C1]", "map_record_too_large"),
 ])
 def test_map_attempt_reason_codes(monkeypatch, draft, code):
-    provider = ScriptedProvider([draft, "Fact [1]"])
+    provider = ScriptedProvider([draft, "Fact [C1]"])
     monkeypatch.setattr(models, "provider", provider)
     state = validation_state()
     source = {"id": "source-id", "name": "Alpha"}
@@ -96,7 +96,7 @@ def test_map_budget_accepts_valid_records_above_old_limit(monkeypatch):
     chunk = {"id": "chunk-id", "source_id": "source-id", "source_name": "Alpha",
              "page": None, "text": "Fact"}
     for size in (801, 2400):
-        record = "X" * (size - 3) + "[1]"
+        record = "X" * (size - 4) + "[C1]"
         provider = ScriptedProvider([record])
         monkeypatch.setattr(models, "provider", provider)
         state = validation_state()
@@ -110,7 +110,7 @@ def test_map_budget_accepts_valid_records_above_old_limit(monkeypatch):
 
 
 def test_map_stream_safety_ceiling_remains_8192(monkeypatch):
-    provider = ScriptedProvider(["X" * 8193, "Fact [1]"])
+    provider = ScriptedProvider(["X" * 8193, "Fact [C1]"])
     monkeypatch.setattr(models, "provider", provider)
     source = {"id": "source-id", "name": "Alpha"}
     chunk = {"id": "chunk-id", "source_id": "source-id", "source_name": "Alpha",
@@ -125,17 +125,17 @@ def test_map_stream_safety_ceiling_remains_8192(monkeypatch):
 
 
 @pytest.mark.parametrize(("answer", "code", "counts"), [
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S2 Beta | [2] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |\n| S2 Beta | [C2] |",
      None, (2, 2, 0, 0, 0)),
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |",
      "missing_source_row", (1, 1, 1, 0, 0)),
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S1 Alpha | [1] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |\n| S1 Alpha | [C1] |",
      "duplicate_source_row", (2, 1, 1, 1, 0)),
-    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| Beta | [2] |",
+    ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |\n| Beta | [C2] |",
      "unmatched_source_row", (2, 1, 1, 0, 1)),
-    ("Source | Evidence\n--- | ---\nS1 Alpha | [1]\nS2 Beta | [2]",
+    ("Source | Evidence\n--- | ---\nS1 Alpha | [C1]\nS2 Beta | [C2]",
      "unparseable_source_rows", (0, 0, 2, 0, 0)),
-    ("  | Source | Evidence |  \n  | :--- | ---: |  \n  | S1 Alpha | [1] |  \n  | S2 Beta | [2] |",
+    ("  | Source | Evidence |  \n  | :--- | ---: |  \n  | S1 Alpha | [C1] |  \n  | S2 Beta | [C2] |",
      None, (2, 2, 0, 0, 0)),
 ])
 def test_source_row_failure_counts(answer, code, counts):
@@ -161,7 +161,7 @@ def test_failed_attempt_codes_are_persisted_without_drafts(tmp_path, monkeypatch
     async def inline(fn, *args, **kwargs):
         return fn(*args, **kwargs)
     monkeypatch.setattr(chat, "run_in_threadpool", inline)
-    provider = ScriptedProvider(["Rejected claim [9]", "Rejected claim [9]"])
+    provider = ScriptedProvider(["Rejected claim [C9]", "Rejected claim [C9]"])
     monkeypatch.setattr(models, "provider", provider)
     notebook_id, conversation_id, source_id, chunk_id = [db.uid() for _ in range(4)]
     stamp = db.now()

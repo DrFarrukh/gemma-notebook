@@ -6,8 +6,10 @@ const {markdown, escapeHtml} = require('../app/static/markdown.js');
 
 test('chat page requests fresh UI assets and tolerates a cached previous script', () => {
   const html = readFileSync(require.resolve('../app/static/index.html'), 'utf8');
-  assert.match(html, /\/assets\/app\.js\?v=chat-drafts-20260926/);
-  assert.match(html, /\/assets\/style\.css\?v=chat-drafts-20260926/);
+  assert.match(html, /\/assets\/app\.js\?v=model-controls-20260926/);
+  assert.match(html, /\/assets\/style\.css\?v=model-controls-20260926/);
+  assert.match(html, /id="thinkingSelect"/);
+  assert.match(html, /id="temperatureSelect"/);
   assert.match(html, /id="chatStatus" class="hidden"/);
 });
 
@@ -56,6 +58,9 @@ function uiHarness() {
         return {ok: true, json: async () => response.promise};
       }
       const body = path === '/api/health' ? {ollama: true, generation_ready: true, embedding_ready: true}
+        : path === '/api/settings' ? {generation_model: 'gemma4:e4b', available_models: ['gemma4:e4b'],
+            num_ctx: 16384, context_options: [8192, 16384], temperature: 0.2,
+            temperature_options: [0, 0.2, 0.7], thinking: 'auto', thinking_options: ['auto', 'off', 'on']}
         : path === '/api/notebooks' ? Object.values(notebooks)
         : path.endsWith('/messages') ? histories[path.split('/')[3]] : notebooks[path.split('/').at(-1)];
       return {ok: true, json: async () => body};
@@ -76,6 +81,13 @@ function uiHarness() {
   const state = vm.runInContext('state', context);
   return {context, state, node, notebooks, histories, requests, streams, toasts, pending, listeners, ready: new Promise(setImmediate)};
 }
+
+test('generation controls load context, thinking, and temperature settings', async () => {
+  const ui = uiHarness(); await ui.ready;
+  assert.match(ui.node('#ctxSelect').innerHTML, /value="16384" selected/);
+  assert.match(ui.node('#thinkingSelect').innerHTML, /value="auto" selected>Think auto/);
+  assert.match(ui.node('#temperatureSelect').innerHTML, /value="0.2" selected>Temp 0.2/);
+});
 
 test('request meter labels the latest model request rather than chat memory', async () => {
   const ui = uiHarness(); await ui.ready;

@@ -3,11 +3,18 @@ function escapeHtml(value = '') {
 }
 
 // Keep this grammar and limits in sync with chat.references().
-function citationNumbers(inner) {
-  const term = '[0-9]+(?:[ \\t]*[-–][ \\t]*[0-9]+)?';
+function citationNumbers(inner, currentNamespace = false) {
+  const prefix = currentNamespace ? 'C' : '';
+  if (prefix && !inner.startsWith(prefix)) return null;
+  if (!prefix && /^[C]/.test(inner)) return null;
+  if (!currentNamespace) inner = inner.slice(prefix.length);
+  const term = currentNamespace ? 'C[0-9]+(?:[ \\t]*[-–][ \\t]*C[0-9]+)?' : '[0-9]+(?:[ \\t]*[-–][ \\t]*[0-9]+)?';
   if (!new RegExp(`^${term}(?:[ \\t]*,[ \\t]*${term})*$`).test(inner)) return null;
   const numbers = [];
-  const parse = value => value.length <= 16 && Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Number(value) : null;
+  const parse = value => {
+    const numeric = value.replace(/^C/, '');
+    return numeric.length <= 16 && Number.isSafeInteger(Number(numeric)) && Number(numeric) > 0 ? Number(numeric) : null;
+  };
   for (const part of inner.split(/[ \t]*,[ \t]*/)) {
     const ends = part.split(/[ \t]*[-–][ \t]*/).map(parse);
     if (ends.includes(null) || (ends.length === 2 && ends[1] < ends[0])) return null;
@@ -35,6 +42,9 @@ function linkDestinationEnd(text, start) {
 }
 
 function markdown(value, citations = []) {
+  // New answers use C-prefixed IDs. Stored answers without that namespace retain
+  // legacy numeric citation links; numeric bibliography refs in new answers stay plain.
+  const currentNamespace = citations.some(item => item.namespace === 'C');
   const citationIndex = new Map(citations.map((item, index) => [Number(item.number ?? index + 1), index]));
   const inline = text => {
     const parts = [];
@@ -54,15 +64,19 @@ function markdown(value, citations = []) {
       } else {
         const inner = raw.slice(1, -1);
         const linkEnd = raw.endsWith(']') ? linkDestinationEnd(text, match.index + raw.length) : null;
-        const numbers = raw.endsWith(']') && !linkEnd && /^[0-9]/.test(inner) ? citationNumbers(inner) : null;
+        const marker = currentNamespace ? /^C[0-9]/.test(inner) : /^[0-9]/.test(inner);
+        const numbers = raw.endsWith(']') && !linkEnd && marker ? citationNumbers(inner, currentNamespace) : null;
         if (linkEnd !== null) {
           parts.push({html: escapeHtml(text.slice(match.index, linkEnd))});
           end = linkEnd;
           continue;
         } else if (numbers) {
-          parts.push({html: `[${numbers.map(n => citationIndex.has(n)
-            ? `<button class="citation" data-citation="${citationIndex.get(n)}" title="Open source ${n}">${n}</button>`
-            : String(n)).join(', ')}]`});
+          parts.push({html: `[${numbers.map(n => {
+            const label = `${currentNamespace ? 'C' : ''}${n}`;
+            return citationIndex.has(n)
+              ? `<button class="citation" data-citation="${citationIndex.get(n)}" title="Open source ${label}">${label}</button>`
+              : label;
+          }).join(', ')}]`});
         } else addPlain(raw);
       }
       end = match.index + raw.length;

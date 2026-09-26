@@ -137,6 +137,23 @@ test('grouped, adjacent and ranged citations link each known sparse number by me
   assert.equal((html.match(/data-citation=/g) || []).length, 2 + 2 + 6 + 2 + 3 + 2 + 1);
 });
 
+test('C namespace links current citations and leaves academic numeric references plain', () => {
+  const citations = [1, 2, 3, 4, 5, 32].map(number => ({number, namespace: 'C'}));
+  const html = markdown('Previous work [32], methods [5], [17]; evidence [C1, C3] and [C2-C4].', citations);
+  assert.match(html, /Previous work \[32\], methods \[5\], \[17\]/);
+  assert.match(html, /Open source C1/);
+  assert.match(html, /Open source C3/);
+  assert.match(html, /Open source C4/);
+  assert.doesNotMatch(html, /Open source C32|Open source C5/);
+  assert.equal((html.match(/data-citation=/g) || []).length, 5);
+});
+
+test('legacy saved numeric citations remain clickable when no C citations are present', () => {
+  const html = markdown('Historical answer [1, 2].', [{number: 1}, {number: 2}]);
+  assert.match(html, /Open source 1/);
+  assert.match(html, /Open source 2/);
+});
+
 test('malformed markers stay escaped, code and numeric Markdown links are never citation buttons', () => {
   const bad = ['[1x]', '[1,]', '[0]', '[1,-2]', '[-1]', '[2-1]', '[1–0]', '[1-201]',
     '[1,2-201]', '[9007199254740992]', '[12345678901234567]', '[1, 2', '[1,,2]'];

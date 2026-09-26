@@ -80,6 +80,7 @@ async function loadSettings() {
     const settings = await api('/api/settings');
     state.numCtx = settings.num_ctx || state.numCtx;
     const modelSelect = $('#modelSelect'), ctxSelect = $('#ctxSelect');
+    const thinkingSelect = $('#thinkingSelect'), temperatureSelect = $('#temperatureSelect');
     if (modelSelect) {
       const models = settings.available_models?.length ? settings.available_models : [settings.generation_model];
       modelSelect.innerHTML = models.map(m => `<option value="${escapeHtml(m)}" ${m === settings.generation_model ? 'selected' : ''}>${escapeHtml(m)}</option>`).join('');
@@ -87,6 +88,15 @@ async function loadSettings() {
     if (ctxSelect) {
       ctxSelect.innerHTML = (settings.context_options || []).map(n =>
         `<option value="${n}" ${n === settings.num_ctx ? 'selected' : ''}>${formatTokens(n)}</option>`).join('');
+    }
+    if (thinkingSelect) {
+      const labels = {auto: 'Think auto', off: 'Think off', on: 'Think on'};
+      thinkingSelect.innerHTML = (settings.thinking_options || ['auto', 'off', 'on']).map(value =>
+        `<option value="${value}" ${value === settings.thinking ? 'selected' : ''}>${labels[value] || value}</option>`).join('');
+    }
+    if (temperatureSelect) {
+      temperatureSelect.innerHTML = (settings.temperature_options || [0, 0.2, 0.4, 0.7, 1]).map(value =>
+        `<option value="${value}" ${Number(value) === Number(settings.temperature) ? 'selected' : ''}>Temp ${value}</option>`).join('');
     }
   } catch (error) { /* Settings are optional; ignore if Ollama is unreachable. */ }
 }
@@ -744,6 +754,8 @@ $('#studioClose').onclick = () => $('#studioPanel').classList.remove('open');
 
 $('#modelSelect').addEventListener('change', event => changeSettings({generation_model: event.target.value}));
 $('#ctxSelect').addEventListener('change', event => changeSettings({num_ctx: Number(event.target.value)}));
+$('#thinkingSelect').addEventListener('change', event => changeSettings({thinking: event.target.value}));
+$('#temperatureSelect').addEventListener('change', event => changeSettings({temperature: Number(event.target.value)}));
 
 // Initialize
 const initialDark = localStorage.getItem('theme') ? localStorage.getItem('theme') === 'dark' : true;

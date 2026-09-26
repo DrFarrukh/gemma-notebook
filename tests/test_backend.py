@@ -27,17 +27,20 @@ class FakeProvider:
         self.answers = answers or ["Evidence [1]"]
         self.fail_at = fail_at
         self.calls = []
+        self.think_values = []
 
     def embed(self, texts):
         return [[1.0, 0.0] for _ in texts]
 
-    async def stream(self, messages):
+    async def stream(self, messages, think=None):
         self.calls.append(messages)
+        self.think_values.append(think)
         index = len(self.calls)
         if index == self.fail_at:
             yield models.ModelEvent("text", text="partial ")
             raise RuntimeError("secret upstream exception")
         answer = self.answers[min(index - 1, len(self.answers) - 1)]
+        answer = model_citations(answer)
         yield models.ModelEvent("text", text=answer)
         yield models.ModelEvent("metrics", metrics={"eval_count": 8, "total_duration": 42})
 
@@ -53,13 +56,24 @@ class ScriptedProvider(FakeProvider):
         super().__init__()
         self.script = answers
 
-    async def stream(self, messages):
+    async def stream(self, messages, think=None):
         self.calls.append(messages)
+        self.think_values.append(think)
         answer = self.script[len(self.calls) - 1]
         if isinstance(answer, Exception):
             raise answer
+        answer = model_citations(answer)
         yield models.ModelEvent("text", text=answer)
         yield models.ModelEvent("metrics", metrics={"eval_count": 8})
+
+
+def model_citations(answer):
+    """Legacy fixtures emulate a model following the current C citation prompt."""
+    import re
+    if "[C" in answer:
+        return answer
+    return re.sub(r"\[(\d+(?:\s*[-–,]\s*\d+)*)\]",
+                  lambda m: "[" + re.sub(r"\d+", lambda n: "C" + n.group(), m[1]) + "]", answer)
 
 
 @pytest.fixture
@@ -100,6 +114,21 @@ def add_indexed_chunk(conn, cid, sid, nid, ordinal, text, vector=(1, 0)):
     conn.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
                  (cid, models.EMBEDDING_MODEL, "test-digest", len(vector), packed))
     conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (cid, text))
+
+
+def add_section_chunks(nid, sid, sections, text_length=1900):
+    ids = []
+    with db.connection() as conn:
+        for ordinal, section in enumerate(sections, 1):
+            cid = db.uid()
+            body = f"evidence {ordinal} " + (f"chunk{ordinal} " * (text_length // 8))
+            conn.execute("INSERT INTO chunks VALUES(?,?,?,?,?,?,?,?)",
+                         (cid, sid, nid, ordinal, ordinal, section, body, retrieval.pack_vector([1, 0])))
+            conn.execute("INSERT INTO chunk_embeddings VALUES(?,?,?,?,?)",
+                         (cid, models.EMBEDDING_MODEL, "test-digest", 2, retrieval.pack_vector([1, 0])))
+            conn.execute("INSERT INTO chunk_fts VALUES(?,?)", (cid, body))
+            ids.append(cid)
+    return ids
 
 
 def test_file_headers_and_activity(env):
@@ -334,7 +363,7 @@ def test_citation_retry_reuses_evidence_and_persists_only_valid_answer(env, monk
     assert first not in json.dumps(provider.calls[1])
     saved = client.get(f"/api/notebooks/{nid}/messages").json()
     assert [item["role"] for item in saved] == ["user", "assistant"]
-    assert saved[1]["content"] == "Supported answer [1, 2]."
+    assert saved[1]["content"] == "Supported answer [C1, C2]."
     assert first not in json.dumps(saved)
     run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
     assert run["coverage"]["citation_retry_used"] is True
@@ -432,7 +461,7 @@ def test_diagnosis_two_sources_two_cited_table_rows(env, monkeypatch):
     assert [item["number"] for item in received[0]["citations"]] == [1, 2]
     assert len(provider.calls) == 3
     final_input = provider.calls[-1][-1]["content"]
-    assert '"citation": 1' in final_input and '"citation": 2' in final_input
+    assert '"citation": "C1"' in final_input and '"citation": "C2"' in final_input
 
 
 def test_exact_two_paper_prompt_reaches_two_maps_and_one_synthesis(env, monkeypatch):
@@ -455,21 +484,29 @@ def test_exact_two_paper_prompt_reaches_two_maps_and_one_synthesis(env, monkeypa
     coverage = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]["coverage"]
     assert coverage["retrieval_mode"] == "exhaustive"
     assert coverage["eligible_sources"] == coverage["represented_sources"] == 2
+    assert coverage["exhaustive_chunks_per_source_limit"] == 5
+    assert coverage["exhaustive_source_evidence_budget_chars"] == 12_000
+    assert coverage["map_evidence_budget_chars"] == 12_000
+    assert coverage["exhaustive_map_thinking"] is False
+    assert coverage["exhaustive_synthesis_thinking"] is False
+    assert coverage["chunks_per_source_selected"] == {first: 1, second: 1}
+    assert coverage["distinct_sections_per_source"] == {first: 0, second: 0}
+    assert all(value > 0 for value in coverage["evidence_chars_per_source"].values())
     assert coverage["generation_attempts"] == 1
 
 
 def test_diagnosis_parser_and_row_failure_categories():
     assert chat.references("(citation 1) and source 1", {1}) == set()
-    assert chat.references("**Supported [1, 2]** and [1-2]", {1, 2}) == {1, 2}
-    assert chat.references("| S1 Alpha | claim | [1] |", {1}) == {1}
+    assert chat.references("**Supported [C1, C2]** and [C1-C2]", {1, 2}) == {1, 2}
+    assert chat.references("| S1 Alpha | claim | [C1] |", {1}) == {1}
     with pytest.raises(ValueError, match="Citation outside current evidence"):
-        chat.references("Unsupported [3]", {1, 2})
-    with pytest.raises(ValueError, match="Malformed numeric citation"):
-        chat.references("Malformed [1,]", {1})
-    row = "| Source | Claim | Evidence |\n|---|---|---|\n| S1 Alpha | claim | [1] |"
+        chat.references("Unsupported [C3]", {1, 2})
+    with pytest.raises(ValueError, match="Malformed C citation"):
+        chat.references("Malformed [C1,]", {1})
+    row = "| Source | Claim | Evidence |\n|---|---|---|\n| S1 Alpha | claim | [C1] |"
     chat._validate_source_rows(row, {"S1": {1}})
     with pytest.raises(chat.CitationValidationError):
-        chat._validate_source_rows("Intro [1]\n" + row.replace("| [1] |", "| empty |"), {"S1": {1}})
+        chat._validate_source_rows("Intro [C1]\n" + row.replace("| [C1] |", "| empty |"), {"S1": {1}})
     with pytest.raises(chat.SourceCompletenessError):
         chat._validate_source_rows(row.replace("S1 Alpha", "Alpha"), {"S1": {1}})
 
@@ -477,7 +514,7 @@ def test_diagnosis_parser_and_row_failure_categories():
 def test_diagnosis_valid_global_citation_but_uncited_table_row_is_rejected(env, monkeypatch):
     client, nid, _, _ = env
     add_source(nid, "Alpha reports a measured result", name="Alpha")
-    uncited_row = ("Intro grounded in current evidence [1].\n"
+    uncited_row = ("Intro grounded in current evidence [C1].\n"
                    "| Source | Result | Evidence |\n|---|---|---|\n"
                    "| S1 Alpha | Measured result | empty |")
     provider = ScriptedProvider(["Alpha result [1].", uncited_row, uncited_row])
@@ -508,7 +545,7 @@ def test_diagnosis_map_to_final_citation_numbers_remain_stable(env, monkeypatch)
     assert received[-1]["type"] == "done"
     assert [c["number"] for c in received[0]["citations"]] == [1, 2, 3, 4]
     payload = json.loads(provider.calls[-1][-1]["content"].removeprefix("<synthesis_input_json>\n").removesuffix("\n</synthesis_input_json>"))
-    assert [[e["citation"] for e in record["original_evidence"]] for record in payload["source_records"]] == [[1, 2], [3, 4]]
+    assert [[e["citation"] for e in record["original_evidence"]] for record in payload["source_records"]] == [["C1", "C2"], ["C3", "C4"]]
 
 
 def test_exhaustive_source_records_scope_and_missing_fields(env, monkeypatch):
@@ -541,7 +578,7 @@ def test_exhaustive_source_records_scope_and_missing_fields(env, monkeypatch):
     assert all(len(r["original_evidence"]) == 1 for r in payload["source_records"])
     assert all("Not reported in supplied evidence" in r["summary_untrusted"] for r in payload["source_records"])
     saved = client.get(f"/api/notebooks/{nid}/messages").json()
-    assert saved[-1]["content"] == final
+    assert saved[-1]["content"] == model_citations(final)
     assert all("Not reported in supplied evidence" in row for row in final.splitlines()[2:])
     run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
     assert run["coverage"]["retrieval_mode"] == "exhaustive"
@@ -561,9 +598,9 @@ def test_exhaustive_retrieval_is_bounded_and_keeps_empty_source_record(env):
     empty, _ = add_source(nid, "irrelevant", vector=(-1, 0))
     groups = retrieval.retrieve_by_source(nid, "Compare every paper", source_ids=[sid, empty])
     assert [source["id"] for source, _ in groups] == [sid, empty]
-    assert len(groups[0][1]) == 3
+    assert len(groups[0][1]) == 5
     assert groups[1][1] == []
-    assert len(retrieval.evidence_text(groups[0][1])) <= 6000
+    assert len(retrieval.evidence_text(groups[0][1])) <= 12_000
 
 
 def test_exhaustive_final_citation_retry_and_completeness(env, monkeypatch):
@@ -589,7 +626,7 @@ def test_exhaustive_final_citation_retry_and_completeness(env, monkeypatch):
     assert len(calls) == 1
     assert len(provider.calls) == 4
     assert provider.calls[2][-1]["content"] == provider.calls[3][-1]["content"]
-    assert client.get(f"/api/notebooks/{nid}/messages").json()[-1]["content"] == valid
+    assert client.get(f"/api/notebooks/{nid}/messages").json()[-1]["content"] == model_citations(valid)
     run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
     assert run["coverage"]["generation_attempts"] == 2
     assert run["metrics"]["stage_calls"] == {"exhaustive_map": 2, "exhaustive_synthesis": 1,
@@ -629,12 +666,12 @@ def test_exhaustive_rejects_omitted_row_and_oversized_input(env, monkeypatch):
 
 
 def test_exhaustive_row_check_rejects_extra_or_fenced_rows():
-    two_rows = ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [1] |\n| S2 Beta | [2] |")
+    two_rows = ("| Source | Evidence |\n|---|---|\n| S1 Alpha | [C1] |\n| S2 Beta | [C2] |")
     chat._validate_source_rows(two_rows, {"S1": {1}, "S2": {2}})
     with pytest.raises(chat.SourceCompletenessError):
-        chat._validate_source_rows(two_rows + "\n| Alpha again | [1] |", {"S1": {1}, "S2": {2}})
+        chat._validate_source_rows(two_rows + "\n| Alpha again | [C1] |", {"S1": {1}, "S2": {2}})
     with pytest.raises(chat.SourceCompletenessError):
-        chat._validate_source_rows("```\n" + two_rows + "\n```\nSummary [1]", {"S1": {1}, "S2": {2}})
+        chat._validate_source_rows("```\n" + two_rows + "\n```\nSummary [C1]", {"S1": {1}, "S2": {2}})
 
 
 def test_exhaustive_map_rejects_uncited_record_without_synthesis(env, monkeypatch):
@@ -811,6 +848,70 @@ def test_retrieval_diversity_and_no_budget_phantom_citations(env, monkeypatch):
     assert retrieval.citations_for(retrieval.retrieve(nid, "photosynthesis")) == []
 
 
+def test_exhaustive_adaptive_budget_section_diversity_and_scoping(env, monkeypatch):
+    client, nid, _, _ = env
+    source_a, _ = add_source(nid, "seed evidence", name="A")
+    source_b, _ = add_source(nid, "seed evidence", name="B")
+    ids_a = add_section_chunks(nid, source_a, ["Methods", "Methods", "Dataset", "Results", None, "unknown"])
+    ids_b = add_section_chunks(nid, source_b, ["Methods", "Dataset", "Results", None, "Discussion", "Methods"])
+    original_rank = retrieval._rank_query
+
+    def ordered_rank(notebook_id, query, candidates, source_ids, *args, **kwargs):
+        selected_ids = set(ids_a + ids_b)
+        return sorted((c for c in candidates if c["id"] in selected_ids),
+                      key=lambda c: (ids_a + ids_b).index(c["id"]))
+
+    monkeypatch.setattr(retrieval, "_rank_query", ordered_rank)
+    diagnostics = {}
+    groups = retrieval.retrieve_by_source(nid, "evidence", [source_a, source_b], diagnostics=diagnostics)
+    assert retrieval.exhaustive_budget(2) == (5, 12_000)
+    for source, chunks in groups:
+        expected = ids_a if source["id"] == source_a else ids_b
+        selected = [chunk["id"] for chunk in chunks]
+        assert len(selected) == 5
+        assert set(selected) <= set(expected)
+        sections = [chunk["section"] for chunk in chunks if chunk["section"] not in (None, "unknown")]
+        assert len(set(sections)) >= (3 if source["id"] == source_a else 4)
+        assert sum(len(chunk["text"]) for chunk in chunks) < 12_000
+    assert diagnostics["chunks_per_source_selected"] == {source_a: 5, source_b: 5}
+    assert diagnostics["distinct_sections_per_source"] == {source_a: 3, source_b: 4}
+    assert diagnostics["evidence_chars_per_source"][source_a] < 12_000
+    assert retrieval.exhaustive_budget(4)[1] < retrieval.exhaustive_budget(2)[1]
+    assert retrieval.exhaustive_budget(8)[1] < retrieval.exhaustive_budget(4)[1]
+    assert retrieval.exhaustive_budget(11)[1] < retrieval.exhaustive_budget(8)[1]
+    constrained = retrieval.retrieve_by_source(nid, "evidence", [source_a],
+                                               chunks_per_source=5, source_budget=4_500)
+    assert len(constrained[0][1]) <= 2
+    assert sum(len(chunk["text"]) for chunk in constrained[0][1]) < 4_500
+    monkeypatch.setattr(retrieval, "_rank_query", original_rank)
+
+
+def test_current_citation_validation_ignores_paper_references(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "dataset from previous work [32], with six channels")
+    provider = ScriptedProvider(["Dataset from previous work [32], with six channels [C1]."])
+    monkeypatch.setattr(models, "provider", provider)
+    result = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "Describe dataset"}))
+    assert result[-1]["type"] == "done"
+    assert chat.references("dataset from previous work [32], methods [5], [17] [C3]", {3}) == {3}
+    with pytest.raises(ValueError, match="outside current evidence"):
+        chat.references("Unsupported [C999]", {1})
+
+
+def test_new_citation_namespace_and_exhaustive_table_prompt(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "First paper evidence", name="Alpha")
+    add_source(nid, "Second paper evidence", name="Beta")
+    provider = ScriptedProvider(["Alpha [C1]", "Beta [C2]",
+                                 "| Source | Paper | Evidence |\n|---|---|---|\n| S1 Alpha | A | [C1] |\n| S2 Beta | B | [C2] |"])
+    monkeypatch.setattr(models, "provider", provider)
+    result = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": EXACT_TWO_PAPER_PROMPT}))
+    assert result[-1]["type"] == "done"
+    assert "Do not transpose the table" in provider.calls[-1][0]["content"]
+    assert "exactly 2 data rows" in provider.calls[-1][0]["content"]
+    assert provider.think_values == [False, False, False]
+
+
 def test_partial_model_stream_is_not_persisted(env, monkeypatch):
     client, nid, fake, root = env
     add_source(nid, "model evidence")
@@ -858,12 +959,14 @@ def test_diagnostics_bounded_retention(env):
 
 def test_ollama_final_metrics_vram_and_truncation(monkeypatch):
     requests = []
+    chat_payloads = []
 
     def respond(request):
         requests.append(request.url.path)
         if request.url.path == "/api/ps":
             return httpx.Response(200, json={"models": [{"name": models.GENERATION_MODEL, "size_vram": 4096}]})
         if request.url.path == "/api/chat":
+            chat_payloads.append(json.loads(request.content))
             return httpx.Response(200, text='{"message":{"content":"hello"}}\n'
                                              '{"done":true,"total_duration":10,"load_duration":2,'
                                              '"prompt_eval_duration":3,"eval_duration":4,'
@@ -878,7 +981,14 @@ def test_ollama_final_metrics_vram_and_truncation(monkeypatch):
     async def check():
         provider = models.OllamaProvider()
         output = [event async for event in provider.stream([{"role": "user", "content": "hello"}])]
+        disabled = [event async for event in provider.stream(
+            [{"role": "user", "content": "table"}], think=False)]
+        monkeypatch.setattr(models, "THINKING", "on")
+        enabled = [event async for event in provider.stream(
+            [{"role": "user", "content": "reason"}])]
         assert output[0].text == "hello"
+        assert disabled[0].text == "hello"
+        assert enabled[0].text == "hello"
         assert output[1].metrics == {"total_duration": 10, "load_duration": 2,
                                      "prompt_eval_duration": 3, "eval_duration": 4,
                                      "prompt_eval_count": 5, "eval_count": 6}
@@ -886,6 +996,10 @@ def test_ollama_final_metrics_vram_and_truncation(monkeypatch):
         assert await provider.vram_bytes() == 4096
         assert (await provider.health())["generation_ready"] is True
         assert "/api/chat" in requests
+        assert "think" not in chat_payloads[0]
+        assert chat_payloads[0]["options"]["temperature"] == models.TEMPERATURE
+        assert chat_payloads[1]["think"] is False
+        assert chat_payloads[2]["think"] is True
 
     import asyncio
     asyncio.run(check())
@@ -909,6 +1023,27 @@ def test_ollama_final_metrics_vram_and_truncation(monkeypatch):
     asyncio.run(upstream_error())
 
 
+def test_runtime_generation_settings_include_context_temperature_and_thinking(env, monkeypatch):
+    client, _nid, _fake, _root = env
+    monkeypatch.setattr(models, "NUM_CTX", 16384)
+    monkeypatch.setattr(models, "TEMPERATURE", 0.2)
+    monkeypatch.setattr(models, "THINKING", "auto")
+
+    current = client.get("/api/settings").json()
+    assert current["num_ctx"] == 16384
+    assert current["temperature"] == 0.2
+    assert current["thinking"] == "auto"
+    assert current["thinking_options"] == ["auto", "off", "on"]
+
+    updated = client.post("/api/settings", json={
+        "num_ctx": 32768, "temperature": 0.4, "thinking": "on"}).json()
+    assert updated == {"generation_model": models.GENERATION_MODEL, "num_ctx": 32768,
+                       "temperature": 0.4, "thinking": "on"}
+    assert models.thinking_value() is True
+    assert client.post("/api/settings", json={"thinking": "maximum"}).status_code == 400
+    assert client.post("/api/settings", json={"temperature": 2.1}).status_code == 422
+
+
 def test_diagnostics_error_does_not_break_chat(env, monkeypatch):
     client, nid, fake, root = env
     add_source(nid, "observable evidence")
@@ -917,29 +1052,30 @@ def test_diagnostics_error_does_not_break_chat(env, monkeypatch):
     assert db.row("SELECT COUNT(*) AS n FROM messages")["n"] == 2
 
 
-def test_full_numeric_citation_parsing():
-    assert chat.references("supported [10] then [1]", range(1, 11)) == {1, 10}
-    assert chat.references("[3,4] [1, 10] [1,2,5,7,10,12] [1][2] [3-5] [5–6]",
+def test_citation_namespace_parsing_ignores_numeric_bibliography():
+    assert chat.references("previous work [32], supported [C10] then [C1]", range(1, 11)) == {1, 10}
+    assert chat.references("[C3,C4] [C1, C10] [C1,C2,C5,C7,C10,C12] [C1][C2] [C3-C5] [C5–C6]",
                            range(1, 13)) == {1, 2, 3, 4, 5, 6, 7, 10, 12}
-    assert chat.references("[1,10] [10-12]", {1, 10, 11, 12}) == {1, 10, 11, 12}
-    assert chat.references("[title](url) and [a] [10]", range(1, 11)) == {10}
-    assert chat.references("`[2]`\n```python\n[3,4]\n```\n[2024 report](https://example.org) [2024](url) ![2025 cover](img.png) [10]",
+    assert chat.references("[C1,C10] [C10-C12]", {1, 10, 11, 12}) == {1, 10, 11, 12}
+    assert chat.references("[title](url) and [a] [C10]", range(1, 11)) == {10}
+    assert chat.references("`[C2]`\n```python\n[C3,C4]\n```\n[2024 report](https://example.org) [2024](url) ![2025 cover](img.png) [C10]",
                            range(1, 11)) == {10}
-    assert chat.references("[1,2](url) ![1-2](img.png) [1]", range(1, 2)) == {1}
-    links = ("[1,2](https://example.org/Foo_(bar)) ![1-2](https://example.org/plot_(final).png) "
-             r"[1](https://example.org/a\(b\)/[2])")
+    assert chat.references("[C1,C2](url) ![C1-2](img.png) [C1]", range(1, 2)) == {1}
+    links = ("[C1,C2](https://example.org/Foo_(bar)) ![C1-2](https://example.org/plot_(final).png) "
+             r"[C1](https://example.org/a\(b\)/[C2])")
     assert chat.references(links, {1, 2}) == set()
-    assert chat.references(links + " [2]", {2}) == {2}
-    for text in ("[1x]", "unfinished [1", "wrong [11]", "[1,11]", "[1-11]",
-                 "[0]", "[-1]", "[1,-2]", "[2-1]", "[1–0]", "[1,,2]", "[1,]",
-                 "[1-201]", "[1,2-201]", "[9007199254740992]", "[12345678901234567]"):
+    assert chat.references(links + " [C2]", {2}) == {2}
+    assert chat.references("previous work [32], methods [5], [17]", set()) == set()
+    for text in ("[C1x]", "unfinished [C1", "wrong [C11]", "[C1,C11]", "[C1-C11]",
+                 "[C0]", "[C1,C-2]", "[C2-C1]", "[C1–C0]", "[C1,,C2]", "[C1,]",
+                 "[C1-C201]", "[C1,C2-C201]", "[C9007199254740992]", "[C12345678901234567]"):
         with pytest.raises(ValueError):
             chat.references(text, range(1, 11))
-    assert chat.references("[1-200]", range(1, 201)) == set(range(1, 201))
-    assert chat.references("[1] [1]", {1}) == {1}
-    intent = chat._messages("question", [], [{"role": "user", "content": "Earlier [1, 3-5] " + links + " `code [7]`"}])
+    assert chat.references("[C1-C200]", range(1, 201)) == set(range(1, 201))
+    assert chat.references("[C1] [C1]", {1}) == {1}
+    intent = chat._messages("question", [], [{"role": "user", "content": "Earlier [C1, C3-C5] " + links + " `code [C7]`"}])
     prior = json.loads(intent[-1]["content"].split('<request_json>\n')[1].split('\n</request_json>')[0])
-    assert prior["prior_user_questions_not_evidence"] == ['Earlier  ' + links + ' `code [7]`']
+    assert prior["prior_user_questions_not_evidence"] == ['Earlier  ' + links + ' `code [C7]`']
 
 
 def test_escaped_chat_question_and_history_never_start_oversized_generation(env):
@@ -998,7 +1134,7 @@ def test_chat_tenth_citation_and_missing_citation(env):
     success = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "evidence?"}))
     assert len(success[0]["citations"]) == 10
     assert success[-1]["type"] == "done"
-    assert db.row("SELECT content FROM messages WHERE role='assistant'")["content"] == "Valid tenth [1, 10]"
+    assert db.row("SELECT content FROM messages WHERE role='assistant'")["content"] == "Valid tenth [C1, C10]"
     failed = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "more evidence?"}))
     assert failed[-1]["type"] == "error"
     assert len(client.get(f"/api/notebooks/{nid}/messages").json()) == 2
@@ -1015,7 +1151,7 @@ def test_serialized_evidence_exact_budget_and_numbering(env, monkeypatch):
     assert len(retrieval.evidence_text(chosen)) <= retrieval.EVIDENCE_BUDGET
     monkeypatch.setattr(retrieval, "EVIDENCE_BUDGET", len(actual))
     assert len(retrieval.budgeted(chunks)) == 12
-    assert '"citation": 10' in retrieval.evidence_text(chunks)
+    assert '"citation": "C10"' in retrieval.evidence_text(chunks)
 
 
 def test_no_zero_score_filler_after_rank_80(env):
@@ -1042,7 +1178,7 @@ def test_studio_retry_no_truncation_and_missing_source(env):
     result = events(client.post(f"/api/notebooks/{nid}/artifacts", json={"kind": "summary"}))
     assert result[-1]["type"] == "done"
     assert len(fake.calls) == 4
-    assert "Compact [1]" in fake.calls[-1][-1]["content"]
+    assert "Compact [C1]" in fake.calls[-1][-1]["content"]
     assert "x" * 50 not in fake.calls[-1][-1]["content"]
     run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
     assert run["metrics"]["stage_calls"] == {"map": 2, "map_retry": 1, "synthesis": 1}
@@ -1050,7 +1186,9 @@ def test_studio_retry_no_truncation_and_missing_source(env):
     assert run["metrics"]["metric_samples"]["total_duration"] == 4
     assert run["coverage"]["config"] == {"generation_model": models.GENERATION_MODEL,
                                           "embedding_model": models.EMBEDDING_MODEL,
-                                          "num_ctx": models.NUM_CTX, "num_predict": 4096}
+                                          "num_ctx": models.NUM_CTX, "num_predict": 4096,
+                                          "temperature": models.TEMPERATURE,
+                                          "thinking": models.THINKING}
     assert "First source" not in json.dumps(run)
     fake.calls.clear()
     fake.answers = ["Map [1]", "Map [2]", "Ignored second [1]"]
@@ -1089,7 +1227,7 @@ def test_studio_tenth_citation_map_and_final(env):
     assert result[-1]["type"] == "done"
     saved = db.row("SELECT citations,content FROM artifacts")
     assert [c["number"] for c in json.loads(saved["citations"])] == list(range(1, 11))
-    assert saved["content"].startswith("All sources [1-10]")
+    assert saved["content"].startswith("All sources [C1-C10]")
 
 
 def test_studio_persists_only_finally_used_sparse_citations(env):
@@ -1103,7 +1241,7 @@ def test_studio_persists_only_finally_used_sparse_citations(env):
     assert events(client.post(f"/api/notebooks/{nid}/artifacts", json={"kind": "summary"}))[-1]["type"] == "done"
     saved = db.row("SELECT citations FROM artifacts WHERE notebook_id=?", (nid,))
     assert [c["number"] for c in json.loads(saved["citations"])] == [1, 3]
-    assert db.row("SELECT content FROM artifacts WHERE notebook_id=?", (nid,))["content"].startswith("Only these facts [1,3]")
+    assert db.row("SELECT content FROM artifacts WHERE notebook_id=?", (nid,))["content"].startswith("Only these facts [C1,C3]")
 
 
 def test_group_with_unknown_member_does_not_save_chat_or_studio(env):
