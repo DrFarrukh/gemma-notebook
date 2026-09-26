@@ -6,8 +6,8 @@ const {markdown, escapeHtml} = require('../app/static/markdown.js');
 
 test('chat page requests fresh UI assets and tolerates a cached previous script', () => {
   const html = readFileSync(require.resolve('../app/static/index.html'), 'utf8');
-  assert.match(html, /\/assets\/app\.js\?v=source-status-20260927/);
-  assert.match(html, /\/assets\/style\.css\?v=source-status-20260927/);
+  assert.match(html, /\/assets\/app\.js\?v=source-markdown-20260927/);
+  assert.match(html, /\/assets\/style\.css\?v=source-markdown-20260927/);
   assert.match(html, /id="thinkingSelect"/);
   assert.match(html, /id="temperatureSelect"/);
   assert.match(html, /id="chatStatus" class="hidden"/);
@@ -63,6 +63,8 @@ function uiHarness() {
             temperature_options: [0, 0.2, 0.7], thinking: 'auto',
             thinking_options: ['auto', 'off', 'low', 'medium', 'high', 'max', 'on']}
         : path === '/api/notebooks' ? Object.values(notebooks)
+        : path.endsWith('/content') ? {source_id: 'ready', name: 'paper.pdf', status: 'ready',
+            summary: 'Gemma summary text', summary_status: 'ready', markdown: '# Full source\n\nAll extracted text.'}
         : path.endsWith('/messages') ? histories[path.split('/')[3]] : notebooks[path.split('/').at(-1)];
       return {ok: true, json: async () => body};
     },
@@ -96,7 +98,7 @@ test('source list clearly shows queued, processing, completed, and failed states
   ui.state.detail.sources = [
     {id:'queued', name:'queued.pdf', status:'queued', enabled:1},
     {id:'processing', name:'processing.pdf', status:'processing', enabled:1},
-    {id:'ready', name:'ready.pdf', status:'ready', enabled:1, page_count:8},
+    {id:'ready', name:'ready.pdf', status:'ready', enabled:1, page_count:8, summary_status:'processing'},
     {id:'error', name:'error.pdf', status:'error', enabled:0, error:'OCR failed'}
   ];
 
@@ -104,9 +106,26 @@ test('source list clearly shows queued, processing, completed, and failed states
   const list = ui.node('#sourceList').innerHTML;
   assert.match(list, /Queued for processing/);
   assert.match(list, /Processing…/);
-  assert.match(list, /Processed · 8 pages/);
+  assert.match(list, /Processed · summary generating · 8 pages/);
   assert.match(list, /Not processed · Retry available/);
   assert.match(list, /aria-live="polite"/);
+});
+
+test('clicking a processed source shows its Gemma summary above the full Markdown', async () => {
+  const ui = uiHarness(); await ui.ready;
+  await ui.context.selectNotebook('A');
+  ui.state.detail.sources = [{id:'ready', name:'paper.pdf', kind:'pdf', status:'ready', enabled:1, page_count:4, char_count:3000}];
+  const button = {dataset:{sourceDetails:'ready'}, closest(selector) {
+    return selector === '[data-source-details]' ? this : null;
+  }};
+  await ui.listeners.click({target:button});
+  await new Promise(setImmediate);
+  assert.equal(ui.node('#citationDialog').open, true);
+  assert.equal(ui.node('#sourceSummaryStatus').textContent, 'Ready');
+  assert.match(ui.node('#sourceSummary').innerHTML, /Gemma summary text/);
+  assert.match(ui.node('#sourceMarkdown').innerHTML, /Full source/);
+  assert.match(ui.node('#sourceMarkdown').innerHTML, /All extracted text/);
+  assert.equal(ui.node('#citationFile').href, '/api/files/ready');
 });
 
 test('request meter labels the latest model request rather than chat memory', async () => {

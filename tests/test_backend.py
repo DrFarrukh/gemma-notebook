@@ -817,6 +817,13 @@ def test_upload_lifecycle_additive_schema(env):
     assert uploaded.status_code == 202
     sid = uploaded.json()["id"]
     assert db.row("SELECT status FROM sources WHERE id=?", (sid,))["status"] == "ready"
+    content = client.get(f"/api/sources/{sid}/content").json()
+    assert content["markdown"] == "Read this safe text"
+    assert content["summary_status"] == "ready"
+    assert content["summary"]
+    detail_source = client.get(f"/api/notebooks/{nid}").json()["sources"][0]
+    assert detail_source["summary_status"] == "ready"
+    assert fake.calls[-1][0]["role"] == "system"
     old_chunk = db.row("SELECT id FROM chunks WHERE source_id=?", (sid,))["id"]
     assert client.patch(f"/api/sources/{sid}/toggle").json() == {"enabled": False}
     assert client.post(f"/api/sources/{sid}/retry").status_code == 202
@@ -825,6 +832,19 @@ def test_upload_lifecycle_additive_schema(env):
                   "WHERE c.source_id=?", (sid,))["n"] == 1
     assert client.delete(f"/api/sources/{sid}").status_code == 204
     assert client.get(f"/api/files/{sid}").status_code == 404
+
+
+def test_failed_source_summary_does_not_fail_indexing_and_can_be_retried(env):
+    client, nid, fake, _root = env
+    fake.fail_at = 1
+    uploaded = client.post(f"/api/notebooks/{nid}/sources/paste", json={
+        "name": "summary retry", "text": "The paper tests an EMG model on six participants."})
+    sid = uploaded.json()["id"]
+    assert db.row("SELECT status FROM sources WHERE id=?", (sid,))["status"] == "ready"
+    assert db.row("SELECT summary_status FROM source_documents WHERE source_id=?", (sid,))["summary_status"] == "error"
+    fake.fail_at = None
+    assert client.post(f"/api/sources/{sid}/summary/retry").status_code == 202
+    assert db.row("SELECT summary_status FROM source_documents WHERE source_id=?", (sid,))["summary_status"] == "ready"
 
 
 def test_retrieval_diversity_and_no_budget_phantom_citations(env, monkeypatch):

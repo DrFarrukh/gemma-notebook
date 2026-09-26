@@ -23,6 +23,7 @@ Open <http://127.0.0.1:8787>. Use `./logs.sh` for logs and `./stop.sh` to stop t
 
 - Multiple persistent notebooks
 - PDF, DOCX, ODT, text, Markdown, HTML, CSV, and pasted-text sources
+- Click any source to read its complete extracted Markdown, with a Gemma-generated summary above it
 - Hybrid semantic and keyword retrieval using local embeddings
 - Streaming source-grounded chat with clickable page/excerpt citations
 - Editable notes, summaries, FAQs, and study/briefing guides
@@ -30,6 +31,8 @@ Open <http://127.0.0.1:8787>. Use `./logs.sh` for logs and `./stop.sh` to stop t
 - Local-only storage and localhost-only network binding
 
 PDFs are converted to page-wise Markdown with PyMuPDF4LLM before chunking. When a table caption is present but its bounded table region has at most 12 extracted words, local Tesseract OCR recovers text from that region; thousands split by the PDF are normalized (for example, `207 275` to `207,275`). Page numbers remain attached to chunks for citations, and the uploaded PDF remains the original file used for viewing. Deterministic Markdown heading handling populates chunk sections when headings are available. PDF chunks target about 2,800 characters with 350 characters of overlap and a 4,000-character hard cap; other file types retain their existing extraction and chunking paths. Image-only PDFs continue to show the existing local OCR warning.
+
+After source text is extracted and indexed, Gemma generates and stores a per-source summary. Long documents use bounded excerpts sampled from across the extracted text. Summary generation has its own status and retry control, so a model error does not discard successfully indexed source text. The source reader shows the summary above the full extracted Markdown and retains a link to the original file. Previously processed sources are backfilled on first open.
 
 ### Inspect PDF extraction
 
@@ -67,7 +70,7 @@ Source-complete chat fills a per-source evidence budget while preserving adaptiv
 
 Everything is under `data/`:
 
-- `data/notebook.db` — notebooks, extracted chunks, embeddings, chats, notes, artifacts
+- `data/notebook.db` — notebooks, extracted Markdown and summaries, chunks, embeddings, chats, notes, artifacts
 - `data/files/` — original uploaded sources
 
 Before upgrades or other changes, make a consistent backup: stop the app and archive the entire directory:

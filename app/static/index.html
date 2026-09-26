@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <title>Gemma Notebook</title>
-  <link rel="stylesheet" href="/assets/style.css?v=source-status-20260927">
+  <link rel="stylesheet" href="/assets/style.css?v=source-markdown-20260927">
 </head>
 <body>
   <!-- Global Navigation Header -->
@@ -317,19 +317,27 @@
   </dialog>
 
   <!-- Citation Dialog -->
-  <dialog id="citationDialog" class="citation-dialog">
+  <dialog id="citationDialog" class="citation-dialog source-document-dialog">
     <form method="dialog">
       <div class="dialog-head">
         <div>
-          <span class="eyebrow">SOURCE CITATION</span>
-          <h2 id="citationTitle">Source excerpt</h2>
+          <span class="eyebrow">PROCESSED SOURCE</span>
+          <h2 id="citationTitle">Source</h2>
         </div>
         <button value="cancel" class="icon-button">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
       <p class="citation-location" id="citationLocation"></p>
-      <blockquote id="citationExcerpt"></blockquote>
+      <section class="source-summary-panel">
+        <div class="source-summary-heading"><h3>Gemma summary</h3><span id="sourceSummaryStatus" role="status"></span></div>
+        <div id="sourceSummary"></div>
+        <button type="button" class="button ghost hidden" id="retrySourceSummary">Retry summary</button>
+      </section>
+      <section class="source-markdown-panel">
+        <h3>Full extracted Markdown</h3>
+        <div id="sourceMarkdown" class="source-markdown"></div>
+      </section>
       <div class="dialog-actions">
         <a class="button ghost" id="citationFile" target="_blank" rel="noopener">Open original file</a>
       </div>
@@ -341,6 +349,6 @@
   <span id="chatStatus" class="hidden" aria-hidden="true"></span>
   <script src="/assets/markdown.js" defer></script>
   <script src="/assets/stream.js" defer></script>
-  <script src="/assets/app.js?v=source-status-20260927" defer></script>
+  <script src="/assets/app.js?v=source-markdown-20260927" defer></script>
 </body>
 </html>

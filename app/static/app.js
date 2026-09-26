@@ -10,6 +10,7 @@ const state = {
   viewEpoch: 0,
   selecting: null,
   editing: null,
+  sourceDocumentId: null,
   poller: null,
   sourceQuery: '',
   numCtx: null
@@ -230,12 +231,50 @@ function renderSources() {
 function sourceStatusLabel(source) {
   if (source.status === 'ready') {
     const detail = source.page_count ? `${source.page_count} pages` : `${Math.round((source.char_count || 0) / 1000)}k chars`;
+    if (['queued', 'processing'].includes(source.summary_status)) return `Processed · summary generating · ${detail}`;
+    if (source.summary_status === 'error') return `Processed · summary failed · ${detail}`;
     return `Processed · ${detail}`;
   }
   if (source.status === 'queued') return 'Queued for processing';
   if (source.status === 'processing') return 'Processing…';
   if (source.status === 'error') return 'Not processed · Retry available';
   return 'Not processed';
+}
+
+function showSourceDocument(source) {
+  state.sourceDocumentId = source.id;
+  $('#citationTitle').textContent = source.name;
+  $('#citationLocation').textContent = `${source.kind.toUpperCase()}${source.page_count ? ` · ${source.page_count} pages` : ''}${source.char_count ? ` · ${Math.round(source.char_count/1000)}k chars` : ''} · ${source.status}`;
+  $('#citationFile').href = `/api/files/${source.id}`;
+  $('#sourceSummary').innerHTML = '';
+  $('#sourceMarkdown').innerHTML = '';
+  $('#sourceSummaryStatus').textContent = source.status === 'ready' ? 'Loading source…' : sourceStatusLabel(source);
+  $('#retrySourceSummary').classList.add('hidden');
+  $('#citationDialog').showModal();
+  loadSourceDocument(source.id);
+}
+
+async function loadSourceDocument(sourceId) {
+  if (state.sourceDocumentId !== sourceId || !$('#citationDialog').open) return;
+  try {
+    const document = await api(`/api/sources/${sourceId}/content`);
+    if (state.sourceDocumentId !== sourceId || !$('#citationDialog').open) return;
+    $('#sourceSummaryStatus').textContent = document.summary_status === 'ready' ? 'Ready'
+      : document.summary_status === 'processing' || document.summary_status === 'queued' ? 'Generating summary…'
+      : document.summary_status === 'error' ? (document.summary_error || 'Summary generation failed')
+      : document.status === 'ready' ? 'Summary unavailable' : sourceStatusLabel(document);
+    $('#sourceSummary').innerHTML = document.summary ? markdown(document.summary) : '';
+    $('#sourceMarkdown').innerHTML = document.markdown ? markdown(document.markdown)
+      : `<p>${escapeHtml(document.error || (document.status === 'ready' ? 'Preparing the full extracted text…' : 'Full text will be available when processing finishes.'))}</p>`;
+    $('#retrySourceSummary').classList.toggle('hidden', document.status !== 'ready' || document.summary_status !== 'error');
+    if (['queued', 'processing'].includes(document.status) ||
+        document.status === 'ready' && ['queued', 'processing'].includes(document.summary_status) ||
+        document.status === 'ready' && !document.markdown) {
+      setTimeout(() => loadSourceDocument(sourceId), 1800);
+    }
+  } catch (error) {
+    if (state.sourceDocumentId === sourceId) $('#sourceSummaryStatus').textContent = error.message;
+  }
 }
 
 function showAddedSource(source, notebookId) {
@@ -585,6 +624,17 @@ function setupDragAndDrop() {
 }
 
 document.addEventListener('click', async event => {
+  if (event.target.closest('#retrySourceSummary')) {
+    const sourceId = state.sourceDocumentId;
+    if (!sourceId) return;
+    try {
+      await api(`/api/sources/${sourceId}/summary/retry`, {method:'POST'});
+      $('#sourceSummaryStatus').textContent = 'Generating summary…';
+      $('#retrySourceSummary').classList.add('hidden');
+      loadSourceDocument(sourceId);
+    } catch (error) { toast(error.message); }
+    return;
+  }
   const retryBtn = event.target.closest('[data-source-retry]');
   if (retryBtn) {
     event.stopPropagation();
@@ -614,13 +664,7 @@ document.addEventListener('click', async event => {
   const sourceDetailsBtn = event.target.closest('[data-source-details]');
   if (sourceDetailsBtn) {
     const source = state.detail.sources.find(x => x.id === sourceDetailsBtn.dataset.sourceDetails);
-    if (source) {
-      $('#citationTitle').textContent = source.name;
-      $('#citationLocation').textContent = `${source.kind.toUpperCase()}${source.page_count ? ` · ${source.page_count} pages` : ''}${source.char_count ? ` · ${Math.round(source.char_count/1000)}k chars` : ''} · ${source.status}`;
-      $('#citationExcerpt').textContent = source.error || `Source file is processed and active. Included in Gemma local research grounding.`;
-      $('#citationFile').href = `/api/files/${source.id}`;
-      $('#citationDialog').showModal();
-    }
+    if (source) showSourceDocument(source);
     return;
   }
 

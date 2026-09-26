@@ -70,7 +70,18 @@ def require_notebook(notebook_id):
 def source_json(source):
     source["enabled"] = bool(source["enabled"])
     source["scanned"] = bool(source["scanned"])
+    source.setdefault("summary_status", "queued")
+    source.setdefault("summary_error", None)
     return source
+
+
+def source_with_document(source_id):
+    return db.row("""
+      SELECT s.*,COALESCE(d.summary_status,'queued') AS summary_status,
+             d.summary_error
+      FROM sources s LEFT JOIN source_documents d ON d.source_id=s.id
+      WHERE s.id=?
+    """, (source_id,))
 
 
 @app.get("/api/health")
@@ -185,7 +196,12 @@ def delete_notebook(notebook_id: str):
 @app.get("/api/notebooks/{notebook_id}")
 def notebook_detail(notebook_id: str):
     notebook = require_notebook(notebook_id)
-    notebook["sources"] = [source_json(s) for s in db.rows("SELECT * FROM sources WHERE notebook_id=? ORDER BY created_at DESC", (notebook_id,))]
+    notebook["sources"] = [source_json(s) for s in db.rows("""
+      SELECT s.*,COALESCE(d.summary_status,'queued') AS summary_status,
+             d.summary_error
+      FROM sources s LEFT JOIN source_documents d ON d.source_id=s.id
+      WHERE s.notebook_id=? ORDER BY s.created_at DESC
+    """, (notebook_id,))]
     notebook["notes"] = db.rows("SELECT * FROM notes WHERE notebook_id=? ORDER BY updated_at DESC", (notebook_id,))
     notebook["artifacts"] = db.rows("SELECT * FROM artifacts WHERE notebook_id=? ORDER BY updated_at DESC", (notebook_id,))
     return notebook
@@ -218,9 +234,11 @@ async def upload_source(notebook_id: str, background: BackgroundTasks, file: Upl
     with db.connection() as conn:
         conn.execute("INSERT INTO sources(id,notebook_id,name,kind,path,status,created_at,updated_at) VALUES(?,?,?,?,?,'queued',?,?)",
                      (source_id, notebook_id, filename, kind, str(path), timestamp, timestamp))
+        conn.execute("INSERT INTO source_documents(source_id,summary_status,updated_at) VALUES(?,'queued',?)",
+                     (source_id, timestamp))
         db.touch_notebook(conn, notebook_id)
     background.add_task(documents.process_source, source_id)
-    return source_json(db.row("SELECT * FROM sources WHERE id=?", (source_id,)))
+    return source_json(source_with_document(source_id))
 
 
 @app.post("/api/notebooks/{notebook_id}/sources/paste", status_code=202)
@@ -237,9 +255,46 @@ def paste_source(notebook_id: str, body: PasteIn, background: BackgroundTasks):
     with db.connection() as conn:
         conn.execute("INSERT INTO sources(id,notebook_id,name,kind,path,status,created_at,updated_at) VALUES(?,?,?,?,?,'queued',?,?)",
                      (source_id, notebook_id, body.name.strip(), "text", str(path), timestamp, timestamp))
+        conn.execute("INSERT INTO source_documents(source_id,summary_status,updated_at) VALUES(?,'queued',?)",
+                     (source_id, timestamp))
         db.touch_notebook(conn, notebook_id)
     background.add_task(documents.process_source, source_id)
-    return source_json(db.row("SELECT * FROM sources WHERE id=?", (source_id,)))
+    return source_json(source_with_document(source_id))
+
+
+@app.get("/api/sources/{source_id}/content")
+def source_content(source_id: str, background: BackgroundTasks):
+    source = source_with_document(source_id)
+    if not source:
+        raise HTTPException(404, "Source not found")
+    document = db.row("SELECT markdown,summary_status FROM source_documents WHERE source_id=?", (source_id,))
+    if source["status"] == "ready" and (not document or not document["markdown"]) and (
+            not document or document["summary_status"] != "processing"):
+        with db.connection() as conn:
+            conn.execute("INSERT INTO source_documents(source_id,summary_status,updated_at) VALUES(?,'queued',?) "
+                         "ON CONFLICT(source_id) DO UPDATE SET summary_status='processing',summary_error=NULL,updated_at=excluded.updated_at",
+                         (source_id, db.now()))
+        background.add_task(documents.prepare_source_document, source_id)
+        source = source_with_document(source_id)
+    document = db.row("SELECT markdown,summary,summary_status,summary_error FROM source_documents WHERE source_id=?",
+                      (source_id,)) or {}
+    return {"source_id": source_id, "name": source["name"], "status": source["status"],
+            "error": source["error"], "markdown": document.get("markdown", ""),
+            "summary": document.get("summary", ""),
+            "summary_status": document.get("summary_status", "queued"),
+            "summary_error": document.get("summary_error")}
+
+
+@app.post("/api/sources/{source_id}/summary/retry", status_code=202)
+def retry_source_summary(source_id: str, background: BackgroundTasks):
+    source = db.row("SELECT status FROM sources WHERE id=?", (source_id,))
+    if not source:
+        raise HTTPException(404, "Source not found")
+    document = db.row("SELECT markdown FROM source_documents WHERE source_id=?", (source_id,))
+    if source["status"] != "ready" or not document or not document["markdown"]:
+        raise HTTPException(409, "Source text is not ready yet")
+    background.add_task(documents.generate_source_summary, source_id)
+    return {"summary_status": "queued"}
 
 
 @app.patch("/api/sources/{source_id}/toggle")

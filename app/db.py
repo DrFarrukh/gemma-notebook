@@ -50,6 +50,12 @@ def init_db():
           scanned INTEGER NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS source_documents (
+          source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
+          markdown TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',
+          summary_status TEXT NOT NULL DEFAULT 'queued', summary_error TEXT,
+          updated_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS chunks (
           id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
           notebook_id TEXT NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,

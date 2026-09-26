@@ -494,6 +494,18 @@ dialog input:focus, dialog textarea:focus { border-color: var(--accent); }
 .citation-dialog { width: min(680px, calc(100vw - 32px)); }
 .citation-dialog form { min-width: 0; }
 .citation-dialog blockquote { max-height: 48dvh; overflow: auto; margin: 18px 0; padding: 16px 18px; border-left: 3px solid var(--accent); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: var(--card-bg); color: var(--ink); line-height: 1.65; overflow-wrap: anywhere; }
+.source-document-dialog { width: min(980px, calc(100vw - 32px)); max-height: 92dvh; }
+.source-document-dialog form { max-height: 88dvh; overflow: auto; }
+.source-document-dialog h3 { margin: 0; font-size: 14px; }
+.source-summary-panel, .source-markdown-panel { margin: 18px 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card-bg); }
+.source-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.source-summary-heading span { color: var(--ink-muted); font-size: 12px; }
+.source-summary-panel > div:nth-child(2) { margin-top: 12px; line-height: 1.65; }
+.source-summary-panel > .button { margin-top: 12px; }
+.source-markdown-panel > h3 { margin-bottom: 12px; }
+.source-markdown { max-height: 55dvh; overflow: auto; padding: 16px; border-radius: var(--radius-sm); background: var(--bg); line-height: 1.65; overflow-wrap: anywhere; }
+.source-markdown > :first-child { margin-top: 0; }
+.source-markdown table { min-width: 100%; }
 .citation-location { color: var(--ink-muted); font-size: 12px; }
 .notebook-action-list { display: grid; gap: 8px; }
 .notebook-action { width: 100%; display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card-bg); text-align: left; }
