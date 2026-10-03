@@ -775,6 +775,14 @@ $('#clearChat').onclick = async () => {
   }
 };
 
+// The prompt dialog's X/Cancel must not be submit buttons: with method="dialog",
+// the first submit button becomes the Enter-key target, so pressing Enter in the
+// title field silently closed the dialog with "cancel" and created nothing.
+$$('#promptForm button[value="cancel"]').forEach(button => {
+  button.type = 'button';
+  button.onclick = () => $('#promptDialog').close('cancel');
+});
+
 // Studio Note
 $('#newNote').onclick = async () => {
   const note = await api(`/api/notebooks/${state.current}/notes`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'New Note',content:''})});
