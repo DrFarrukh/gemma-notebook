@@ -358,8 +358,11 @@ def clear_messages(notebook_id: str):
 async def chat(notebook_id: str, body: ChatIn):
     require_notebook(notebook_id)
     conversation = db.row("SELECT * FROM conversations WHERE notebook_id=?", (notebook_id,))
-    history = db.rows("SELECT role,content FROM messages WHERE conversation_id=? AND role='user' ORDER BY created_at DESC LIMIT 5", (conversation["id"],))
+    history = db.rows("SELECT role,content,citations FROM messages WHERE conversation_id=? "
+                      "ORDER BY created_at DESC,rowid DESC LIMIT 8", (conversation["id"],))
     history.reverse()
+    history = [{"role": item["role"], "content": item["content"],
+                "citations": db.json_value(item["citations"], [])} for item in history]
     return StreamingResponse(generation.stream_chat(notebook_id, conversation["id"], body.question, body.source_ids, history), media_type="application/x-ndjson")
 
 

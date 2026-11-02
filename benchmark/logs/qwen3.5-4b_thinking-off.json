@@ -1,0 +1,1338 @@
+[
+  {
+    "answer": "Based on the supplied evidence, here are the details regarding Ex-Pakistan Leave (EPL), eligibility for probationary employees, and the payment status.\n\n### 1. What is Ex-Pakistan Leave (EPL)?\nEx-Pakistan Leave (EPL) is a specific category of leave granted to employees who apply for it or proceed abroad during their leave period or take leave while on duty abroad [C4]. It must be requested specifically by the employee [C4].\n\n### 2. Can you take EPL if you are on probation?\n**No.** You cannot take Ex-Pakistan Leave (EPL) if you are currently on probation.\n*   **Evidence:** The policy explicitly states that to avail Extraordinary Leave (EOL)—which is the category governing long-term leave abroad including EPL—the employee must have been removed from probation [C6].\n*   **Context:** While the document does not explicitly list \"Ex-Pakistan Leave\" in the same sentence as the probation requirement, EPL falls under the broader governance of Extraordinary Leave (EOL) regarding duration limits and approval processes [C4, C6]. Furthermore, general leave rules state that leave cannot be granted to any member of faculty or support staff under suspension, which typically applies during the probationary period [C7].\n\n### 3. Is EPL \"Leave with Pay\" or \"Leave without Pay\"?\nThe payment status depends on the specific circumstances and funding source:\n*   **With Pay:** If the study (or leave) is fully or partially funded by the University, a bond/undertaking to serve NUST upon completion is required [C1]. The policy mentions that EPL can be granted \"with/without pay\" depending on authorization [C12].\n*   **Without Pay:** If the employee proceeds abroad without specific university funding covering the period, it may be treated as leave without pay (EOL), which generally does not accrue increments or end-of-service benefits [C6].\n*   **Duration Limits:** EPL is subject to a maximum of thirty (30) days at a time or part thereof, based on the available balance of Earned Leave (EL) [C4]. It cannot exceed the earned leave balance up to a maximum of 30 days [C4].\n\n### Summary Table: Ex-Pakistan Leave (EPL) Rules\n\n| Feature | Details | Citation |\n| :--- | :--- | :--- |\n| **Eligibility** | Employee must apply/proceed abroad and make a specific request. Must be removed from probation to avail EOL/EPL. | [C4], [C6] |\n| **Duration** | Maximum of 30 days at a time or part thereof (subject to EL balance). Cannot exceed earned leave balance up to max 30 days. | [C4] |\n| **Payment Status** | Can be granted \"with\" or \"without\" pay depending on authorization and funding. EOL (governing category) is typically without pay unless funded. | [C4], [C6] |\n| **Probationary Status** | **Not Eligible.** Must have been removed from probation to avail Extraordinary Leave (EOL), which covers EPL. | [C6] |\n\n*Note: The policy defines \"Competent Authority\" as the Rector NUST or any official delegated by him, and leave generally requires prior sanction [C13].*",
+    "citations": [
+      {
+        "number": 1,
+        "namespace": "C",
+        "chunk_id": "547d9954-38d9-4c3e-9ae1-d0f756be2f90",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 8,
+        "excerpt": "6.6.1. Study Leave may be granted to an employee for obtaining higher\nqualification degree (i.e. PhD degree for all disciplines and MS degree,\nwith pay as per balance / authorized EL and the rest without pay\n(EOL).\n\n6.6.2. Study Leave may be granted to an employee for up to five (05) years\nthroughout the entire service of a faculty/ staff member. However, after\ncompletion of first term of leave, study leave can be granted for\nanother term after two (02) years of compulsory service.\n\n6.6.3. Before proceeding on study leave, an employee shall execute legal\nformalities, including a bond/ undertaking to serve NUST on\ncompletion of studies, in case the study is fully / partially funded by\nthe Uni"
+      },
+      {
+        "number": 2,
+        "namespace": "C",
+        "chunk_id": "eb28a322-fa4a-4f8a-b7c4-1c27746cd188",
+        "source_id": "f7d1c0cc-094c-4844-a294-7f51239aaa3e",
+        "source_name": "Appointment of HoDs.pdf",
+        "page": 3,
+        "excerpt": "d. Specified tenure may be reduced if it is considered that the HOD has difficulty in managing\n\nthe duties due to any reason including research, other commitments or aptitude.\n\n7. **HOD Allowance.** HODs are authorized to receive HOD allowance @ Rs 10,000.00 per month.\n\n**Process**\n\n8. The institute will initiate the case for the appointment of HOD duly recommended by Principal\n\n/ Dean and will ensure following:\n\na. Eligibility conditions are followed with due consideration for suitability (according to\n\ndesirable personality attributes)\n\nb. The appointment of HOD may preferably be aligned with the start of an academic year\n\ni.e. new appointee takes charge minimum one month before start of F"
+      },
+      {
+        "number": 3,
+        "namespace": "C",
+        "chunk_id": "5dadcee9-b3ea-4022-9e3b-619297ebcb10",
+        "source_id": "f03ce0b0-a551-4ac0-b81b-8a77b8388e03",
+        "source_name": "Coursework-based MS program.pdf",
+        "page": 3,
+        "excerpt": "## 6. Military Students . Currently, NUST has two categories of military students,\n\ntherefore, separate criteria has been recommended for each category:\n\na. **Military Students - NUST Stream** : Military students who join NUST without\n\navailing military service reserved seats (by getting leave or NOC from their\n\nrespective formations) be treated similarly to NUST students.\n\nb. **Military Students - Military Services Reserved Seats** : Those service students\n\nwho join NUST by availing service reserved seats (through official\n\nselection/sponsorship) be considered separately from NUST students. The\n\nselection of these students may not be counted towards 20%. Students will be\n\nallowed coursework"
+      },
+      {
+        "number": 4,
+        "namespace": "C",
+        "chunk_id": "dc1f8a2a-9ca4-452b-b474-3cb0e12c7fc9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 5,
+        "excerpt": "If an employee is recalled to duty compulsorily from leave that he is spending\naway from his place of duty, he may be granted a single return fare plus daily\nallowance admissible on tour from the station where he is spending leave to the\nplace where he is required to report for duty. In such a case, the remaining leave\nwill be treated as cancelled.\n\n5.14. **Compensation on In-Service Death**\n\nIn case an employee dies while in service, a lump-sum payment equal to full pay\nout of the Earned leave at his credit up to 365 days shall be made to his “family”\n(Next of Kin).\n\n5.15. **Leave Account**\n\n5.15.1. Leave account for each Faculty and Support Staff (EBPS-17 & above)\nshall be maintained by HR"
+      },
+      {
+        "number": 5,
+        "namespace": "C",
+        "chunk_id": "5cbf7b02-d031-4aa9-b9dd-30f717464240",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 3,
+        "excerpt": "5.3.1. Ordinarily, leave shall begin from the date on which leave as such is\nactually availed and ends on the day preceding the date on which duty is\nresumed.\n\n5.3.2. Intervening Saturdays, Sundays and other public holidays may be added/\nattached to any leave, subject to any limit of absence (on leave), prescribed\nunder each category of leave.\n\n5.3.3. All Leaves (except short leave) shall be applied and sanctioned in terms of\ndays.\n\n5.4. **Combination of Leave**\n\nExcept as otherwise provided, any kind of leave under these provisions may be\ngranted in combination with or in continuation of any other kind of leave, subject to\nany limits prescribed in such cases, provided that LPR shall not be "
+      },
+      {
+        "number": 6,
+        "namespace": "C",
+        "chunk_id": "256898b4-e0e6-41f6-8d74-97d9bb3ada7f",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 7,
+        "excerpt": "6.4.2. The EOL so granted shall not exceed four (04) years throughout the\nentire service of an employee and two (02) years at a stretch without\nany provision for extension. There will be a minimum gap of 3 years\nbetween EOL for research/ postdoc. In case of non-joining/ resumption\nof duties after completion of two (02) years of EOL, service of the\nindividual will stand discontinued. Furthermore, the individual will not\nbe paid emoluments / end of service benefits.\n\n6.4.3. The EOL shall be granted only when the Competent Authority is\nsatisfied that such leave is in the larger interest of the University.\n\n6.4.4. EOL will be governed as follows:\n\n6.4.4.1. To avail EOL the employee must have bee"
+      },
+      {
+        "number": 7,
+        "namespace": "C",
+        "chunk_id": "f8f93175-77e9-44e4-aeaf-16933ae498c9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 4,
+        "excerpt": "Leave of any kind, taken earlier, may be converted into leave of another kind\n\nat a later date on an application within 30 days of joining duty, after expiry of leave\nat the discretion of the leave sanctioning authority subject to adjustment of leave\nsalary.\n\n5.8. **Rejoining from Leave on Medical Grounds**\n\n5.8.1. An employee, who has been granted leave on Medical ground shall\nproduce a Medical Fitness Certificate on resuming duty from an authorized\nMedical Officer, as per NUST Medical Policy.\n\n5.8.2 Leave sanctioning authority may secure second opinion from an\nauthorized Medical Officer, if considered necessary.\n\n5.9. **Rejoining before the Expiry of Leave**\n\nAn employee on leave may retur"
+      },
+      {
+        "number": 8,
+        "namespace": "C",
+        "chunk_id": "6436975b-8668-451b-bd0d-99b8ab093a88",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 19,
+        "excerpt": "#### (For Faculty Only )\n\n20. **HoD Remarks** .\na. Details of replacement of faculty regarding teaching/research/supervision load during his\nabsence:\n\nb. Number of faculty members already on leave ex-Pakistan (sabbatical, extraordinary leave etc)\n\nin the institution:\n\n21. Remarks, if any\n\n**Recommendation by HoD**\n\n**Recommended** **Not Recommended**\n\n19\n_Last Updated on 06/07/2022_"
+      },
+      {
+        "number": 9,
+        "namespace": "C",
+        "chunk_id": "22469939-5d94-4ae2-aee3-a60c42e91ccc",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 18,
+        "excerpt": "### **PART – I**\n\n1. Name: 2. Father/Husband Name:\n\n3. Designation/Appointment:\n\n4. Institution/Directorate: 5. Date of joining:\n\n6. Type of leave applied:\n\nCL/EL/EOL/EPL/SL/Special/Maternity/PL\n\n_(Please_  _on the appropriate type of leave)_\n\n7. Purpose of leave:\n\n8. Leave Duration: From _______________________to___________________ (Total days: _____)\n\n9. Leave already availed (during the year): ______________ 10. Balance Leave:\n\n11. Contact details of Next of Kin:\n\n12. Leave Address (with Tel/fax/e-mail etc):\n\n13. In case of leave ex-Pakistan (abroad), provide the following details:\n\na. Passport No. b. Date/Place of Issue c. Valid up to: _____\n\n18\n_Last Updated on 06/07/2022_"
+      },
+      {
+        "number": 10,
+        "namespace": "C",
+        "chunk_id": "30bea1df-9c25-45fc-ad21-07ae6a4f8cf7",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 1,
+        "excerpt": "### **Approval and Revision Details**\n\n|Policy Code|09-27-006-02|\n|---|---|\n|**WP Title**|NUST Leave Rules (Revised)|\n|**WP No.**|WP No 3<br>|\n|**ECM No.**|27th ECM|\n|**Date**|23 May 2022|\n|**Sponsored by**|HR Dte|\n|**3rd Revision**|NIL|\n|**2nd Revision**|NIL<br>|\n|**1st Revision**|15th ECM dated 06/08/2013|\n\n1. **PURPOSE**\n\nThe intent of this policy document is to spell out entitlements and requirements regarding\nkinds of leave and procedure to apply.\n\n2. **TITLE AND COMMENCEMENT**\n\nThis document will be called “Leave Rules” and shall come into force forthwith.\n\n3. **APPLICABILITY**\n\n3.1. These Rules shall be applicable to all employees of the University except for\nthe following categories:"
+      },
+      {
+        "number": 11,
+        "namespace": "C",
+        "chunk_id": "e3c96dfa-358b-40ee-b090-9cfb4a57b8df",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 11,
+        "excerpt": "6.14.3 Ordinarily, LPR shall not be refused. Orders refusing LPR to regular\nemployee and recalling an employee from LPR shall be passed only by\nthe Rector.\n\n6.14.4 In case an employee on LPR dies before completing three hundred and\nsixty-five(365)days of such leave, his family shall be entitled to lump\nsum payment of financial emoluments equal to the period falling short\nof three hundred and sixty-five (365) days.\n\n6.14.5 Services of the officers on deputation in NUST shall be regulated by\nthe NUST Leave Rules. Liability for LPR/Encashment thereof shall be\nborne by the parent organization, to which the officer permanently\nbelongs at the time of retirement.\n\n6.14.6. **Encashment of LPR**\n\n6.1"
+      },
+      {
+        "number": 12,
+        "namespace": "C",
+        "chunk_id": "5298d822-e99b-4538-85a8-786f6c3aecd5",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 15,
+        "excerpt": "|HR<br>Manual<br>Chapter<br>7|Leave Sanctioning Authority<br>(Schedule-II of NUST Leave Rules)|Col3|Col4|Col5|___|\n|---|---|---|---|---|---|\n|**HR**<br>**Manual**<br> <br>**Chapter**<br>**7 **|**Sponsor**|**Effective**<br>**Date**|**Initial Approving**<br>**Authority/**<br>**Reference**|**Revision**|**Revised Edition**<br>**Approving**<br>**Authority/ Date**|\n|**HR**<br>**Manual**<br> <br>**Chapter**<br>**7 **|**HR Dte**|**06 Aug 2013**|**15th ECM**|**2.0**|**27th ECM 2022**|\n\n1. **SANCTIONING AUTHORITIES - INSTITUTIONS**\n\n1.1.\n\n|a.|Principals|Col3|Col4|\n|---|---|---|---|\n||**Nature of Leave**|**No of Days Per Year**|**Sanctioning Authority**|\n||(1) Casual|20 days (up to 10 days at<br>a time"
+      },
+      {
+        "number": 13,
+        "namespace": "C",
+        "chunk_id": "f90b405a-6fa3-4b11-8894-c6110677e793",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 2,
+        "excerpt": "4.1. “Authorized Medical Officer **”** means the Medical Officer In Charge of NUST\nMedical Centre or his representative.\n\n4.2. “Competent Authority” means Rector NUST or any official to whom he delegates\nhis powers.\n\n4.3. “Completed years of service” means continuous service of the specified\nduration in the University including periods spent on duty.\n\n4.4. “Earned Leave” means leave earned in respect of period spent on duty (excluding\nperiod spent on leave).\n\n4.5. “Leave” means a provision to stay away from work for genuine reasons with prior\napproval of the Competent Authority. It may be granted for a casual purpose or a\nplanned activity, on medical grounds or in extraordinary conditions.\n\n"
+      },
+      {
+        "number": 14,
+        "namespace": "C",
+        "chunk_id": "4c25cb8a-4c13-440a-8697-4eac6ea248ea",
+        "source_id": "290c85ed-61d3-45b9-9a94-59da5f6daede",
+        "source_name": "Recruitment of NUST Faculty.pdf",
+        "page": 5,
+        "excerpt": "## **Discipline-wise Faculty Requirement**\n\n|Deptt|Discipline|Specialized<br>Area|Prof|Assoc<br>Prof|Asst<br>Prof|Lec|RVF|\n|---|---|---|---|---|---|---|---|\n|||||||||\n|||||||||\n|||||||||\n|||||||||\n|||||||||\n\n**Note:** _Faculty cases concerning on going resignation, study/ex-Pakistan leave may also be highlighted_\n_in above state/requirement_ .\n\n_Last Updated on 22/02/2022_"
+      },
+      {
+        "number": 15,
+        "namespace": "C",
+        "chunk_id": "e65caef4-5312-4db8-8947-43cf1aee3d81",
+        "source_id": "290c85ed-61d3-45b9-9a94-59da5f6daede",
+        "source_name": "Recruitment of NUST Faculty.pdf",
+        "page": 1,
+        "excerpt": "# **Recruitment of NUST Faculty**"
+      },
+      {
+        "number": 16,
+        "namespace": "C",
+        "chunk_id": "a9a1b60f-3306-4f14-9f74-e427f743926f",
+        "source_id": "290c85ed-61d3-45b9-9a94-59da5f6daede",
+        "source_name": "Recruitment of NUST Faculty.pdf",
+        "page": 1,
+        "excerpt": "## **Approval and Revision Details**\n\n|Policy Code|09-00-003-03|\n|---|---|\n|**WP Title**|Recruitment SOP for Institutions – NUST Faculty|\n|**WP No.**|Approved vide Minute Sheet|\n|**ACM No.**|Approved vide Minute Sheet|\n|**Date**|16 January, 2019|\n|**Sponsored by**|HR Dte|\n|**3rd Revision**|NIL|\n|**2nd Revision**|WP#32, 50th ACM, 28/12/2017|\n|**1st Revision**|WP#16, 48th ACM, 6/03/2017|\n\n**General** - It has been experienced over a period of time that faculty\nrecruitment process is slow which results in late arrival of faculty even\nwell after commencement of a semester. To address this important aspect\nand in order to streamline the procedure both at institution and HR level,\nfollowing Standa"
+      },
+      {
+        "number": 17,
+        "namespace": "C",
+        "chunk_id": "fcd80935-c222-42ae-8d8e-9f3481402b73",
+        "source_id": "290c85ed-61d3-45b9-9a94-59da5f6daede",
+        "source_name": "Recruitment of NUST Faculty.pdf",
+        "page": 2,
+        "excerpt": "(4) CVs of eligible candidates will be forwarded by HR Dte to the\nconcerned institutions/schools for evaluation and shortlisting\nwithin a week after the closing date.\n\n(5) Institutions/Schools will hold seminars/presentations/\ninterviews to recommend the suitable candidates for selection\nboard. Institutions/Schools will form a Committee of\n4-5 members which will be headed by the\nPrincipal/Commandant of respective institution/school.\n\n(6) Institutions/Schools will be given **03** **weeks** to hold\nseminars/presentations/interviews of candidates and will return\nthe list/summary of recommended candidates as per **Anx ‘B’**\nand\n**Anx ‘C’** (attached).\n\n(7) List of shortlisted candidates by schoo"
+      },
+      {
+        "number": 18,
+        "namespace": "C",
+        "chunk_id": "2eae3d71-7ba1-40e8-94ae-db267cbac769",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 9,
+        "excerpt": "6.8.2. Sabbatical Leave shall only be granted for undertaking research at a\nrecognized institution (local/ foreign).\n\n6.8.3. The period of study leave shall not be counted towards the period\nprescribed for entitlement to Sabbatical Leave.\n\n6.8.4. Normally, a faculty member shall not be allowed to proceed on\nSabbatical Leave or EOL during the middle of a semester.\n\n6.8.5. A faculty member proceeding on Sabbatical Leave may retain the\nresidential accommodation of the University provided that his family\nresides in the house/ apartment.\n\n6.8.6. Before proceeding on Sabbatical Leave, a faculty member shall\nexecute all legal formalities, including a bond.\n\n6.8.7. The faculty member after returning"
+      },
+      {
+        "number": 19,
+        "namespace": "C",
+        "chunk_id": "c7ab3373-f696-41fc-9705-0354e86526a9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 1,
+        "excerpt": "## **Leave Policy**"
+      }
+    ],
+    "statuses": [
+      "Recursive search: collecting initial evidence…",
+      "Recursive search round 2: checking for missing evidence…",
+      "Recursive search round 3: checking for missing evidence…",
+      "Recursive search round 4: checking for missing evidence…"
+    ],
+    "error": null,
+    "seconds": 48.9,
+    "coverage": {
+      "selected_chunks": 19,
+      "retrieval_mode": "focused",
+      "contextualized_retrieval": false,
+      "followup_rewritten": false,
+      "followup_detected": false,
+      "retrieval_scope": "notebook",
+      "conversation_memory_chars": 0,
+      "recursion_rounds": [
+        {
+          "round": 2,
+          "queries": 2,
+          "added_chunks": 3
+        },
+        {
+          "round": 3,
+          "queries": 1,
+          "added_chunks": 4
+        },
+        {
+          "round": 4,
+          "queries": 2,
+          "added_chunks": 2
+        }
+      ],
+      "recursion_stop_reason": "max_rounds",
+      "recursion_seed_budget_chars": 18152,
+      "eligible_sources": null,
+      "represented_sources": 4,
+      "chunks_per_source": {
+        "38c6f09e-a920-4cb2-88f3-4eeb3628d532": 13,
+        "f7d1c0cc-094c-4844-a294-7f51239aaa3e": 1,
+        "f03ce0b0-a551-4ac0-b81b-8a77b8388e03": 1,
+        "290c85ed-61d3-45b9-9a94-59da5f6daede": 4
+      },
+      "embedding_index_model": "embeddinggemma:300m",
+      "query_embedding_model": "embeddinggemma:300m",
+      "embedding_dimensions": {
+        "index": 768,
+        "query": 768
+      },
+      "semantic_candidates": 321,
+      "semantic_hits": 117,
+      "semantic_fallback_reason": null,
+      "citation_retry_used": false,
+      "citation_retry_succeeded": false,
+      "generation_attempts": 1,
+      "validation_failures": [],
+      "scores": {
+        "547d9954-38d9-4c3e-9ae1-d0f756be2f90": {
+          "rrf": 0.03278688524590164,
+          "cosine": 0.6793917042756906
+        },
+        "eb28a322-fa4a-4f8a-b7c4-1c27746cd188": {
+          "rrf": 0.01,
+          "cosine": 0.33009073415506596
+        },
+        "5dadcee9-b3ea-4022-9e3b-619297ebcb10": {
+          "rrf": 0.009615384615384616,
+          "cosine": 0.34582061357054655
+        },
+        "dc1f8a2a-9ca4-452b-b474-3cb0e12c7fc9": {
+          "rrf": 0.03125763125763126,
+          "cosine": 0.6242591698961094
+        },
+        "5cbf7b02-d031-4aa9-b9dd-30f717464240": {
+          "rrf": 0.030158730158730156,
+          "cosine": 0.6349045847874479
+        },
+        "256898b4-e0e6-41f6-8d74-97d9bb3ada7f": {
+          "rrf": 0.03007688828584351,
+          "cosine": 0.6151194734941531
+        },
+        "f8f93175-77e9-44e4-aeaf-16933ae498c9": {
+          "rrf": 0.029827662395050816,
+          "cosine": 0.6496482419233327
+        },
+        "6436975b-8668-451b-bd0d-99b8ab093a88": {
+          "rrf": 0.02946236559139785,
+          "cosine": 0.5630079189706845
+        },
+        "22469939-5d94-4ae2-aee3-a60c42e91ccc": {
+          "rrf": 0.0293236301369863,
+          "cosine": 0.5729936232573732
+        },
+        "30bea1df-9c25-45fc-ad21-07ae6a4f8cf7": {
+          "rrf": 0.026875901875901876,
+          "cosine": 0.5537426141463753
+        },
+        "e3c96dfa-358b-40ee-b090-9cfb4a57b8df": {
+          "rrf": 0.030834914611005692,
+          "cosine": 0.499863906951763
+        },
+        "5298d822-e99b-4538-85a8-786f6c3aecd5": {
+          "rrf": 0.02967032967032967,
+          "cosine": 0.4844986973702073
+        },
+        "f90b405a-6fa3-4b11-8894-c6110677e793": {
+          "rrf": 0.031754032258064516,
+          "cosine": 0.642876932279279
+        },
+        "4c25cb8a-4c13-440a-8697-4eac6ea248ea": {
+          "rrf": 0.02701252236135957,
+          "cosine": 0.5131190106300686
+        },
+        "e65caef4-5312-4db8-8947-43cf1aee3d81": {
+          "rrf": 0.024796803967488637,
+          "cosine": 0.651417120794731
+        },
+        "a9a1b60f-3306-4f14-9f74-e427f743926f": {
+          "rrf": 0.023472381681336904,
+          "cosine": 0.5473226024120933
+        },
+        "fcd80935-c222-42ae-8d8e-9f3481402b73": {
+          "rrf": 0.018329427519250083,
+          "cosine": 0.48306843755823814
+        },
+        "2eae3d71-7ba1-40e8-94ae-db267cbac769": {
+          "rrf": 0.03200204813108039,
+          "cosine": 0.5265613144571999
+        },
+        "c7ab3373-f696-41fc-9705-0354e86526a9": {
+          "rrf": 0.02629443272196072,
+          "cosine": 0.5823480914038596
+        }
+      },
+      "map_evidence_budget_chars": null,
+      "exhaustive_map_thinking": null,
+      "exhaustive_synthesis_thinking": null,
+      "min_similarity": 0.35,
+      "evidence_budget_chars": 36304,
+      "chat_input_budget_chars": 38438,
+      "config": {
+        "generation_model": "qwen3.5:4b",
+        "embedding_model": "embeddinggemma:300m",
+        "num_ctx": 16384,
+        "num_predict": 4096,
+        "temperature": 0.2,
+        "thinking": "off"
+      }
+    },
+    "question": "Tell me about leave out of Pakistan? And if I am on probation, can I still take that leave? and is it \"leave with pay\" or \"leave without pay\"? I am associate professor."
+  },
+  {
+    "answer": "Based on the supplied evidence, there is **no specific category of leave** defined as a standard entitlement for a fixed duration of exactly two years. However, several leave types can be granted for periods up to or exceeding two years, subject to strict eligibility criteria and conditions regarding pay and service bonds.\n\n### 1. Study Leave (Up to 5 Years)\nThis is the primary leave type available for obtaining higher qualifications (e.g., PhD). It may be granted for **up to five (05) years** throughout an employee's entire service [C1].\n*   **Eligibility:** The employee must have put in at least **two (02) years of service** at NUST; waivers are not given [C1].\n*   **Payment Status:** Pay is granted as per the balance of Earned Leave (EL) and authorized Extraordinary Leave (EOL), while the remainder is without pay (EOL) [C1].\n*   **Conditions:**\n    *   A bond/undertaking to serve NUST upon completion is mandatory if the study is funded by the University [C1].\n    *   The leave cannot be combined with any other leave except Earned Leave on Leave (EOL) [C1].\n    *   It cannot exceed the end of the contract date or retirement date, though extensions are possible with Competent Authority approval [C1].\n\n### 2. Extraordinary Leave (EOL) (Up to 4 Years)\nExtraordinary Leave can be granted for research or postdoctoral positions. The total duration throughout service is limited to **four (04) years**, with a maximum of two (02) years at a stretch [C3].\n*   **Eligibility:** Employees must have been removed from probation to avail EOL [C3].\n*   **Payment Status:** It is explicitly granted \"without pay\" (EOL). While deputation to higher administrative positions can be for four years, it remains without pay [C3].\n*   **Conditions:**\n    *   A minimum gap of three (03) years is required between EOL periods for research/postdoc [C3].\n    *   No increments are admissible during the leave period [C3].\n    *   The period does not count towards qualifying service for pension/gratuity [C3].\n\n### 3. Sabbatical Leave (1 Year)\nSabbatical Leave is available for faculty members who are excellent performers, approved by the Rector [C10].\n*   **Duration:** Admissible for **one (01) academic year** after every five (05) years of continued service [C10].\n*   **Payment Status:** Granted at basic pay [C10].\n*   **Conditions:**\n    *   Must be undertaken at a recognized institution (local/foreign) for research [C10].\n    *   Cannot be combined with other leave except for up to three months of EOL upon completion [C10].\n    *   Faculty must execute legal formalities including a bond before proceeding [C10].\n\n### 4. Leave Preparatory to Retirement (LPR) (Up to 365 Days)\n*   **Duration:** Up to **365 days** [C7].\n*   **Eligibility:** Not explicitly restricted by service years in the provided text, but generally applicable as leave due to retirement [C7].\n*   **Payment Status:** The policy does not explicitly state \"with pay\" or \"without pay\" for LPR in the summary tables, though it is listed alongside other leaves. However, standard practice for LPR often involves encashment rather than a sabbatical-style paid leave, but the text provided only specifies the duration and sanctioning authority [C7].\n\n### Summary of Eligibility regarding Probation\n*   **Study Leave:** Requires at least two (02) years of service; probationary employees are ineligible [C1].\n*   **Extraordinary Leave (EOL):** Explicitly requires removal from probation [C3].\n*   **Sabbatical Leave:** Granted to \"excellent performers,\" implying a completed probationary period is a prerequisite for such status [C10].\n\n**Conclusion:**\nIf you are an Associate Professor currently on probation, you **cannot** take Study Leave (max 5 years) or Extraordinary Leave (max 4 years) as these require at least two years of service and removal from probation [C1, C3]. You may be eligible for a Sabbatical Leave (1 year) if you meet the \"excellent performer\" criteria and have completed five years of service, though probation status typically precludes this. The only leave type potentially available during early service is Casual Leave or Earned Leave, neither of which matches your request for a 2-year duration [C4].\n\n**Not reported in supplied evidence:** Specific payment terms (With Pay vs Without Pay) for LPR beyond the duration stated.",
+    "citations": [
+      {
+        "number": 1,
+        "namespace": "C",
+        "chunk_id": "547d9954-38d9-4c3e-9ae1-d0f756be2f90",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 8,
+        "excerpt": "6.6.1. Study Leave may be granted to an employee for obtaining higher\nqualification degree (i.e. PhD degree for all disciplines and MS degree,\nwith pay as per balance / authorized EL and the rest without pay\n(EOL).\n\n6.6.2. Study Leave may be granted to an employee for up to five (05) years\nthroughout the entire service of a faculty/ staff member. However, after\ncompletion of first term of leave, study leave can be granted for\nanother term after two (02) years of compulsory service.\n\n6.6.3. Before proceeding on study leave, an employee shall execute legal\nformalities, including a bond/ undertaking to serve NUST on\ncompletion of studies, in case the study is fully / partially funded by\nthe Uni"
+      },
+      {
+        "number": 2,
+        "namespace": "C",
+        "chunk_id": "22469939-5d94-4ae2-aee3-a60c42e91ccc",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 18,
+        "excerpt": "### **PART – I**\n\n1. Name: 2. Father/Husband Name:\n\n3. Designation/Appointment:\n\n4. Institution/Directorate: 5. Date of joining:\n\n6. Type of leave applied:\n\nCL/EL/EOL/EPL/SL/Special/Maternity/PL\n\n_(Please_  _on the appropriate type of leave)_\n\n7. Purpose of leave:\n\n8. Leave Duration: From _______________________to___________________ (Total days: _____)\n\n9. Leave already availed (during the year): ______________ 10. Balance Leave:\n\n11. Contact details of Next of Kin:\n\n12. Leave Address (with Tel/fax/e-mail etc):\n\n13. In case of leave ex-Pakistan (abroad), provide the following details:\n\na. Passport No. b. Date/Place of Issue c. Valid up to: _____\n\n18\n_Last Updated on 06/07/2022_"
+      },
+      {
+        "number": 3,
+        "namespace": "C",
+        "chunk_id": "256898b4-e0e6-41f6-8d74-97d9bb3ada7f",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 7,
+        "excerpt": "6.4.2. The EOL so granted shall not exceed four (04) years throughout the\nentire service of an employee and two (02) years at a stretch without\nany provision for extension. There will be a minimum gap of 3 years\nbetween EOL for research/ postdoc. In case of non-joining/ resumption\nof duties after completion of two (02) years of EOL, service of the\nindividual will stand discontinued. Furthermore, the individual will not\nbe paid emoluments / end of service benefits.\n\n6.4.3. The EOL shall be granted only when the Competent Authority is\nsatisfied that such leave is in the larger interest of the University.\n\n6.4.4. EOL will be governed as follows:\n\n6.4.4.1. To avail EOL the employee must have bee"
+      },
+      {
+        "number": 4,
+        "namespace": "C",
+        "chunk_id": "dc1f8a2a-9ca4-452b-b474-3cb0e12c7fc9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 5,
+        "excerpt": "If an employee is recalled to duty compulsorily from leave that he is spending\naway from his place of duty, he may be granted a single return fare plus daily\nallowance admissible on tour from the station where he is spending leave to the\nplace where he is required to report for duty. In such a case, the remaining leave\nwill be treated as cancelled.\n\n5.14. **Compensation on In-Service Death**\n\nIn case an employee dies while in service, a lump-sum payment equal to full pay\nout of the Earned leave at his credit up to 365 days shall be made to his “family”\n(Next of Kin).\n\n5.15. **Leave Account**\n\n5.15.1. Leave account for each Faculty and Support Staff (EBPS-17 & above)\nshall be maintained by HR"
+      },
+      {
+        "number": 5,
+        "namespace": "C",
+        "chunk_id": "b2dfb62a-0ade-496d-9496-ff3268d68921",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 13,
+        "excerpt": "three (03) months prior to commencement of leave, for processing /\nobtaining approval of the Competent Authority.\n\n1.2. **Support Staff (Main Office)**\n\n1.2.1. **Pro-Rector / CoF&BD / Officers of Rector Sectt**\nAll types of leave except casual leave will be routed through HR\nDirectorate for processing and obtaining Rector’s approval. On approval,\nall concerned will be intimated accordingly. Officers employed at Rector’s\nSecretariat will get leave directly from the concerned Director/ Rector and\nintimate HR Directorate for maintaining record.\n\n1.2.2. **Directors / Equivalent**\n\nAll types of leave will be processed by the respective Directorate for\napproval from respective Pro-Rector / CoF&BD."
+      },
+      {
+        "number": 6,
+        "namespace": "C",
+        "chunk_id": "6436975b-8668-451b-bd0d-99b8ab093a88",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 19,
+        "excerpt": "#### (For Faculty Only )\n\n20. **HoD Remarks** .\na. Details of replacement of faculty regarding teaching/research/supervision load during his\nabsence:\n\nb. Number of faculty members already on leave ex-Pakistan (sabbatical, extraordinary leave etc)\n\nin the institution:\n\n21. Remarks, if any\n\n**Recommendation by HoD**\n\n**Recommended** **Not Recommended**\n\n19\n_Last Updated on 06/07/2022_"
+      },
+      {
+        "number": 7,
+        "namespace": "C",
+        "chunk_id": "628ebf83-c381-40c0-b49b-991566c9579a",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 17,
+        "excerpt": "|Nature of Leave|No of Days Per Year|Sanctioning Authority|\n|---|---|---|\n|a. Casual<br> <br> <br> <br> <br> <br> <br> <br> <br> <br>|20 days (up to 10<br>days at time)|_(1) For Officers (EBPS-21) _<br> <br>Rector NUST<br>_(2) For Officers (EBPS-20) _<br>Respective Pro-Rector / CoF&BD /<br>Equivalent<br>_(3) For Officers (EBPS-17 to 19) _<br> <br>Director / Equivalent<br>_(4) For Support Staff (EBPS-16 & below) _<br> <br>Director / Dy Director|\n|b. Earned Leave<br>_ (including leave_<br>_ on medical_<br>_ grounds)_<br> <br>|As per authorization<br>|_(1) For Officers (EBPS-21) _<br> <br>Rector NUST<br>_(2) For Officers (EBPS-20) _<br> <br>Respective Pro-Rectors / CoF&BD /<br>Equivalent<br>_(3"
+      },
+      {
+        "number": 8,
+        "namespace": "C",
+        "chunk_id": "294d49e4-840f-4ba7-86f0-e9e443628252",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 16,
+        "excerpt": "|Col1|(6) Maternity Leave|As per authorization|Commandant / Principal|\n|---|---|---|---|\n||(7) Paternity Leave|As per authorization|Commandant / Principal|\n||(8) Special (Eidat)<br>Leave<br>|As per authorization|Commandant / Principal|\n|c.|**Support Staff**|**Support Staff**|**Support Staff**|\n||**Nature of Leave**|**No of Days Per Year**|**Sanctioning Authority**|\n||(1) Casual<br>|20 days (up to 10 days at<br>a time)|_(a) For Officers (EBPS-17 to_<br>_20) _<br> Respective Commandant /<br> <br> <br> <br>Principal<br>_(b) For Support Staff (EBPS-16 _<br>_& below) _<br> <br>SO NUST Affairs / Dy<br>Director / Equivalent|\n||(2) Earned Leave<br>(including leave on<br>medical grounds)|As per autho"
+      },
+      {
+        "number": 9,
+        "namespace": "C",
+        "chunk_id": "f8f93175-77e9-44e4-aeaf-16933ae498c9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 4,
+        "excerpt": "Leave of any kind, taken earlier, may be converted into leave of another kind\n\nat a later date on an application within 30 days of joining duty, after expiry of leave\nat the discretion of the leave sanctioning authority subject to adjustment of leave\nsalary.\n\n5.8. **Rejoining from Leave on Medical Grounds**\n\n5.8.1. An employee, who has been granted leave on Medical ground shall\nproduce a Medical Fitness Certificate on resuming duty from an authorized\nMedical Officer, as per NUST Medical Policy.\n\n5.8.2 Leave sanctioning authority may secure second opinion from an\nauthorized Medical Officer, if considered necessary.\n\n5.9. **Rejoining before the Expiry of Leave**\n\nAn employee on leave may retur"
+      },
+      {
+        "number": 10,
+        "namespace": "C",
+        "chunk_id": "c7ab3373-f696-41fc-9705-0354e86526a9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 1,
+        "excerpt": "## **Leave Policy**"
+      },
+      {
+        "number": 11,
+        "namespace": "C",
+        "chunk_id": "2eae3d71-7ba1-40e8-94ae-db267cbac769",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 9,
+        "excerpt": "6.8.2. Sabbatical Leave shall only be granted for undertaking research at a\nrecognized institution (local/ foreign).\n\n6.8.3. The period of study leave shall not be counted towards the period\nprescribed for entitlement to Sabbatical Leave.\n\n6.8.4. Normally, a faculty member shall not be allowed to proceed on\nSabbatical Leave or EOL during the middle of a semester.\n\n6.8.5. A faculty member proceeding on Sabbatical Leave may retain the\nresidential accommodation of the University provided that his family\nresides in the house/ apartment.\n\n6.8.6. Before proceeding on Sabbatical Leave, a faculty member shall\nexecute all legal formalities, including a bond.\n\n6.8.7. The faculty member after returning"
+      },
+      {
+        "number": 12,
+        "namespace": "C",
+        "chunk_id": "5cbf7b02-d031-4aa9-b9dd-30f717464240",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 3,
+        "excerpt": "5.3.1. Ordinarily, leave shall begin from the date on which leave as such is\nactually availed and ends on the day preceding the date on which duty is\nresumed.\n\n5.3.2. Intervening Saturdays, Sundays and other public holidays may be added/\nattached to any leave, subject to any limit of absence (on leave), prescribed\nunder each category of leave.\n\n5.3.3. All Leaves (except short leave) shall be applied and sanctioned in terms of\ndays.\n\n5.4. **Combination of Leave**\n\nExcept as otherwise provided, any kind of leave under these provisions may be\ngranted in combination with or in continuation of any other kind of leave, subject to\nany limits prescribed in such cases, provided that LPR shall not be "
+      },
+      {
+        "number": 13,
+        "namespace": "C",
+        "chunk_id": "5298d822-e99b-4538-85a8-786f6c3aecd5",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 15,
+        "excerpt": "|HR<br>Manual<br>Chapter<br>7|Leave Sanctioning Authority<br>(Schedule-II of NUST Leave Rules)|Col3|Col4|Col5|___|\n|---|---|---|---|---|---|\n|**HR**<br>**Manual**<br> <br>**Chapter**<br>**7 **|**Sponsor**|**Effective**<br>**Date**|**Initial Approving**<br>**Authority/**<br>**Reference**|**Revision**|**Revised Edition**<br>**Approving**<br>**Authority/ Date**|\n|**HR**<br>**Manual**<br> <br>**Chapter**<br>**7 **|**HR Dte**|**06 Aug 2013**|**15th ECM**|**2.0**|**27th ECM 2022**|\n\n1. **SANCTIONING AUTHORITIES - INSTITUTIONS**\n\n1.1.\n\n|a.|Principals|Col3|Col4|\n|---|---|---|---|\n||**Nature of Leave**|**No of Days Per Year**|**Sanctioning Authority**|\n||(1) Casual|20 days (up to 10 days at<br>a time"
+      },
+      {
+        "number": 14,
+        "namespace": "C",
+        "chunk_id": "30bea1df-9c25-45fc-ad21-07ae6a4f8cf7",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 1,
+        "excerpt": "### **Approval and Revision Details**\n\n|Policy Code|09-27-006-02|\n|---|---|\n|**WP Title**|NUST Leave Rules (Revised)|\n|**WP No.**|WP No 3<br>|\n|**ECM No.**|27th ECM|\n|**Date**|23 May 2022|\n|**Sponsored by**|HR Dte|\n|**3rd Revision**|NIL|\n|**2nd Revision**|NIL<br>|\n|**1st Revision**|15th ECM dated 06/08/2013|\n\n1. **PURPOSE**\n\nThe intent of this policy document is to spell out entitlements and requirements regarding\nkinds of leave and procedure to apply.\n\n2. **TITLE AND COMMENCEMENT**\n\nThis document will be called “Leave Rules” and shall come into force forthwith.\n\n3. **APPLICABILITY**\n\n3.1. These Rules shall be applicable to all employees of the University except for\nthe following categories:"
+      },
+      {
+        "number": 15,
+        "namespace": "C",
+        "chunk_id": "a8e12d08-3534-48cc-9df0-6fba17d82458",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 21,
+        "excerpt": "**Annex-A**\nTo Faculty Leave\nApplication Form"
+      },
+      {
+        "number": 16,
+        "namespace": "C",
+        "chunk_id": "813cdd4e-6977-4b1b-a7d3-f6e9b50515f9",
+        "source_id": "0f6ba8c5-c4ff-4abd-ac2a-6bf873dbc0d1",
+        "source_name": "PhD Policy.pdf",
+        "page": 1,
+        "excerpt": "## **Background**\n\n1. NUST PhD policy was previously revised in 2013. Based on the experience and feedback\n\nover the past five years, the PhD Policy was modified through different policy letters. Therefore,\n\na need was felt to formally amend the published PhD policy incorporating all necessary\n\namendments already in practice and as suggested by stake holders.\n\n2. Some clauses concerning needs to be added/amended attached at annex A.\n\n_Last Updated on 22/02/2022_\n\n1"
+      }
+    ],
+    "statuses": [
+      "Recursive search: collecting initial evidence…",
+      "Recursive search round 2: checking for missing evidence…",
+      "Recursive search round 3: checking for missing evidence…",
+      "Recursive search round 4: checking for missing evidence…"
+    ],
+    "error": null,
+    "seconds": 56.6,
+    "coverage": {
+      "selected_chunks": 16,
+      "retrieval_mode": "focused",
+      "contextualized_retrieval": true,
+      "followup_rewritten": true,
+      "followup_detected": true,
+      "retrieval_scope": "prior_cited_sources",
+      "conversation_memory_chars": 603,
+      "recursion_rounds": [
+        {
+          "round": 2,
+          "queries": 2,
+          "added_chunks": 3
+        },
+        {
+          "round": 3,
+          "queries": 2,
+          "added_chunks": 3
+        },
+        {
+          "round": 4,
+          "queries": 2,
+          "added_chunks": 1
+        }
+      ],
+      "recursion_stop_reason": "max_rounds",
+      "recursion_seed_budget_chars": 17916,
+      "eligible_sources": null,
+      "represented_sources": 2,
+      "chunks_per_source": {
+        "38c6f09e-a920-4cb2-88f3-4eeb3628d532": 15,
+        "0f6ba8c5-c4ff-4abd-ac2a-6bf873dbc0d1": 1
+      },
+      "embedding_index_model": "embeddinggemma:300m",
+      "query_embedding_model": "embeddinggemma:300m",
+      "embedding_dimensions": {
+        "index": 768,
+        "query": 768
+      },
+      "semantic_candidates": 321,
+      "semantic_hits": 105,
+      "semantic_fallback_reason": null,
+      "citation_retry_used": false,
+      "citation_retry_succeeded": false,
+      "generation_attempts": 1,
+      "validation_failures": [],
+      "scores": {
+        "547d9954-38d9-4c3e-9ae1-d0f756be2f90": {
+          "rrf": 0.03252247488101534,
+          "cosine": 0.6487665638397968
+        },
+        "22469939-5d94-4ae2-aee3-a60c42e91ccc": {
+          "rrf": 0.03047794966520434,
+          "cosine": 0.501481380756271
+        },
+        "256898b4-e0e6-41f6-8d74-97d9bb3ada7f": {
+          "rrf": 0.03021353930031804,
+          "cosine": 0.6036972944333026
+        },
+        "dc1f8a2a-9ca4-452b-b474-3cb0e12c7fc9": {
+          "rrf": 0.029877369007803793,
+          "cosine": 0.5134684635707338
+        },
+        "b2dfb62a-0ade-496d-9496-ff3268d68921": {
+          "rrf": 0.029857397504456328,
+          "cosine": 0.5209356005020056
+        },
+        "6436975b-8668-451b-bd0d-99b8ab093a88": {
+          "rrf": 0.02976190476190476,
+          "cosine": 0.4992256582924202
+        },
+        "628ebf83-c381-40c0-b49b-991566c9579a": {
+          "rrf": 0.029386529386529386,
+          "cosine": 0.5676690679716156
+        },
+        "294d49e4-840f-4ba7-86f0-e9e443628252": {
+          "rrf": 0.028991596638655463,
+          "cosine": 0.518928141199375
+        },
+        "f8f93175-77e9-44e4-aeaf-16933ae498c9": {
+          "rrf": 0.028814262023217248,
+          "cosine": 0.519888944977295
+        },
+        "c7ab3373-f696-41fc-9705-0354e86526a9": {
+          "rrf": 0.02938045560996381,
+          "cosine": 0.6463769633435879
+        },
+        "2eae3d71-7ba1-40e8-94ae-db267cbac769": {
+          "rrf": 0.028125,
+          "cosine": 0.39936506834601565
+        },
+        "5cbf7b02-d031-4aa9-b9dd-30f717464240": {
+          "rrf": 0.027402402402402402,
+          "cosine": 0.40523026923394645
+        },
+        "5298d822-e99b-4538-85a8-786f6c3aecd5": {
+          "rrf": 0.03131881575727918,
+          "cosine": 0.5043992253026391
+        },
+        "30bea1df-9c25-45fc-ad21-07ae6a4f8cf7": {
+          "rrf": 0.029571646010002173,
+          "cosine": 0.46695291167658726
+        },
+        "a8e12d08-3534-48cc-9df0-6fba17d82458": {
+          "rrf": 0.02928692699490662,
+          "cosine": 0.5416526997662893
+        },
+        "813cdd4e-6977-4b1b-a7d3-f6e9b50515f9": {
+          "rrf": 0.0287391216352965,
+          "cosine": 0.5287431913597336
+        }
+      },
+      "map_evidence_budget_chars": null,
+      "exhaustive_map_thinking": null,
+      "exhaustive_synthesis_thinking": null,
+      "min_similarity": 0.35,
+      "evidence_budget_chars": 35832,
+      "chat_input_budget_chars": 38438,
+      "config": {
+        "generation_model": "qwen3.5:4b",
+        "embedding_model": "embeddinggemma:300m",
+        "num_ctx": 16384,
+        "num_predict": 4096,
+        "temperature": 0.2,
+        "thinking": "off"
+      }
+    },
+    "question": "I am asking about long 2 years leave!"
+  },
+  {
+    "answer": "Based on the supplied evidence, you **cannot** take Extraordinary Leave (EOL) while on probation. Furthermore, there is no specific provision in the document that grants a standard \"2-year leave\" entitlement; however, EOL can be granted for up to 4 years total, with a maximum of 2 years at a stretch, provided you meet strict eligibility criteria including being removed from probation.\n\n### 1. Probation Status and EOL Eligibility\nYou are explicitly ineligible for EOL while on probation. The policy states that an employee must have been **removed from probation** to avail of EOL [C2]. Additionally, the document notes that faculty cases concerning ongoing resignation or study/ex-Pakistan leave may be highlighted in recruitment requirements, implying such leaves are not granted during probationary periods [C11].\n\n### 2. Duration and Stretch Limits\nThere is no fixed \"2-year leave\" entitlement. Instead:\n*   **Total Limit:** EOL shall not exceed **four (04) years** throughout the entire service of an employee [C2].\n*   **Stretch Limit:** The maximum period allowed at a stretch is **two (02) years** without any provision for extension [C2].\n*   **Gap Requirement:** There must be a minimum gap of **3 years** between EOL periods for research/postdoc purposes [C2].\n\n### 3. Pay Status and Conditions\nEOL is generally granted **without pay**. However, there are specific exceptions:\n*   **Deputation/Attachment:** If the EOL is for deputation or attachment to a higher administrative position (e.g., VC/Rector) within or abroad, it can be granted for 4 years at a stretch and up to 6 years during service. In this specific case, it may be granted **without pay** [C2].\n*   **General Rule:** For standard research/postdoc EOL, the document states that if an individual does not join after completion of two years, their service is discontinued and they will **not be paid emoluments / end of service benefits** [C2].\n\n### 4. Other Leave Types for Research\nSince you are on probation, other long-term research leaves also have restrictions:\n*   **Study Leave:** Requires at least **two (02) years of service** in NUST, which is mandatory and cannot be waived [C1]. It can be granted up to 5 years total but requires a bond if funded by the University [C1].\n*   **Sabbatical Leave:** Granted only to \"excellent performers\" after every 5 years of continued service. You are currently on probation (less than 5 years) and thus ineligible [C2, C5].\n\n### Summary Table: EOL Eligibility for Probationary Employee\n\n| Feature | Status for Probationary Employee |\n| :--- | :--- |\n| **Can take EOL?** | **No** (Must be removed from probation first) [C2] |\n| **Max Duration at Stretch** | 2 years (but you cannot start this yet due to probation) [C2] |\n| **Total Max Duration** | 4 years throughout service [C2] |\n| **Pay Status** | Generally Without Pay; Exception for high admin deputation (still without pay per text) [C2] |\n| **Minimum Service Required** | Not explicitly defined as \"probation removal\" in the snippet, but implied by \"removed from probation\" clause [C2] |\n| **Alternative: Study Leave** | Requires 2 years service (mandatory); Can be up to 5 years; May require bond [C1] |\n\n**Conclusion:** You cannot take EOL while on probation. You must wait until your probation is successfully completed and you are removed from it. Even then, you can only apply for a \"2-year stretch\" if there has been a 3-year gap since your last leave (if applicable) and the Competent Authority approves it as in the larger interest of the University [C2].",
+    "citations": [
+      {
+        "number": 1,
+        "namespace": "C",
+        "chunk_id": "547d9954-38d9-4c3e-9ae1-d0f756be2f90",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 8,
+        "excerpt": "6.6.1. Study Leave may be granted to an employee for obtaining higher\nqualification degree (i.e. PhD degree for all disciplines and MS degree,\nwith pay as per balance / authorized EL and the rest without pay\n(EOL).\n\n6.6.2. Study Leave may be granted to an employee for up to five (05) years\nthroughout the entire service of a faculty/ staff member. However, after\ncompletion of first term of leave, study leave can be granted for\nanother term after two (02) years of compulsory service.\n\n6.6.3. Before proceeding on study leave, an employee shall execute legal\nformalities, including a bond/ undertaking to serve NUST on\ncompletion of studies, in case the study is fully / partially funded by\nthe Uni"
+      },
+      {
+        "number": 2,
+        "namespace": "C",
+        "chunk_id": "256898b4-e0e6-41f6-8d74-97d9bb3ada7f",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 7,
+        "excerpt": "6.4.2. The EOL so granted shall not exceed four (04) years throughout the\nentire service of an employee and two (02) years at a stretch without\nany provision for extension. There will be a minimum gap of 3 years\nbetween EOL for research/ postdoc. In case of non-joining/ resumption\nof duties after completion of two (02) years of EOL, service of the\nindividual will stand discontinued. Furthermore, the individual will not\nbe paid emoluments / end of service benefits.\n\n6.4.3. The EOL shall be granted only when the Competent Authority is\nsatisfied that such leave is in the larger interest of the University.\n\n6.4.4. EOL will be governed as follows:\n\n6.4.4.1. To avail EOL the employee must have bee"
+      },
+      {
+        "number": 3,
+        "namespace": "C",
+        "chunk_id": "f8f93175-77e9-44e4-aeaf-16933ae498c9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 4,
+        "excerpt": "Leave of any kind, taken earlier, may be converted into leave of another kind\n\nat a later date on an application within 30 days of joining duty, after expiry of leave\nat the discretion of the leave sanctioning authority subject to adjustment of leave\nsalary.\n\n5.8. **Rejoining from Leave on Medical Grounds**\n\n5.8.1. An employee, who has been granted leave on Medical ground shall\nproduce a Medical Fitness Certificate on resuming duty from an authorized\nMedical Officer, as per NUST Medical Policy.\n\n5.8.2 Leave sanctioning authority may secure second opinion from an\nauthorized Medical Officer, if considered necessary.\n\n5.9. **Rejoining before the Expiry of Leave**\n\nAn employee on leave may retur"
+      },
+      {
+        "number": 4,
+        "namespace": "C",
+        "chunk_id": "dc1f8a2a-9ca4-452b-b474-3cb0e12c7fc9",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 5,
+        "excerpt": "If an employee is recalled to duty compulsorily from leave that he is spending\naway from his place of duty, he may be granted a single return fare plus daily\nallowance admissible on tour from the station where he is spending leave to the\nplace where he is required to report for duty. In such a case, the remaining leave\nwill be treated as cancelled.\n\n5.14. **Compensation on In-Service Death**\n\nIn case an employee dies while in service, a lump-sum payment equal to full pay\nout of the Earned leave at his credit up to 365 days shall be made to his “family”\n(Next of Kin).\n\n5.15. **Leave Account**\n\n5.15.1. Leave account for each Faculty and Support Staff (EBPS-17 & above)\nshall be maintained by HR"
+      },
+      {
+        "number": 5,
+        "namespace": "C",
+        "chunk_id": "5cbf7b02-d031-4aa9-b9dd-30f717464240",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 3,
+        "excerpt": "5.3.1. Ordinarily, leave shall begin from the date on which leave as such is\nactually availed and ends on the day preceding the date on which duty is\nresumed.\n\n5.3.2. Intervening Saturdays, Sundays and other public holidays may be added/\nattached to any leave, subject to any limit of absence (on leave), prescribed\nunder each category of leave.\n\n5.3.3. All Leaves (except short leave) shall be applied and sanctioned in terms of\ndays.\n\n5.4. **Combination of Leave**\n\nExcept as otherwise provided, any kind of leave under these provisions may be\ngranted in combination with or in continuation of any other kind of leave, subject to\nany limits prescribed in such cases, provided that LPR shall not be "
+      },
+      {
+        "number": 6,
+        "namespace": "C",
+        "chunk_id": "e3c96dfa-358b-40ee-b090-9cfb4a57b8df",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 11,
+        "excerpt": "6.14.3 Ordinarily, LPR shall not be refused. Orders refusing LPR to regular\nemployee and recalling an employee from LPR shall be passed only by\nthe Rector.\n\n6.14.4 In case an employee on LPR dies before completing three hundred and\nsixty-five(365)days of such leave, his family shall be entitled to lump\nsum payment of financial emoluments equal to the period falling short\nof three hundred and sixty-five (365) days.\n\n6.14.5 Services of the officers on deputation in NUST shall be regulated by\nthe NUST Leave Rules. Liability for LPR/Encashment thereof shall be\nborne by the parent organization, to which the officer permanently\nbelongs at the time of retirement.\n\n6.14.6. **Encashment of LPR**\n\n6.1"
+      },
+      {
+        "number": 7,
+        "namespace": "C",
+        "chunk_id": "73719665-0dd1-4ec3-bf87-24913dfe4cac",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 12,
+        "excerpt": "|HR<br>Manual<br>Chapter<br>7|Procedure for Applying Leave<br>(Schedule-I of NUST Leave Rules)|Col3|Col4|Col5|Page ___|\n|---|---|---|---|---|---|\n|**HR**<br>**Manual**<br> <br>**Chapter**<br>**7 **|**Sponsor**|**Effective**<br>**Date**|**Initial Approving**<br>**Authority/**<br>**Reference**|**Revision**|**Revised Edition**<br>**Approving**<br>**Authority/ Date**|\n|**HR**<br>**Manual**<br> <br>**Chapter**<br>**7 **|**HR Dte**|**06 Aug 2013**|**15th ECM**|**2.0**|**27th ECM 2022**|\n\n1. **PROCEDURE FOR APPLYING LEAVE**\n\nLeave is a privilege and cannot be claimed as a matter of right. It is always granted\nsubject to the exigencies of services but may not be withheld on insufficient grounds. A\nN"
+      },
+      {
+        "number": 8,
+        "namespace": "C",
+        "chunk_id": "6436975b-8668-451b-bd0d-99b8ab093a88",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 19,
+        "excerpt": "#### (For Faculty Only )\n\n20. **HoD Remarks** .\na. Details of replacement of faculty regarding teaching/research/supervision load during his\nabsence:\n\nb. Number of faculty members already on leave ex-Pakistan (sabbatical, extraordinary leave etc)\n\nin the institution:\n\n21. Remarks, if any\n\n**Recommendation by HoD**\n\n**Recommended** **Not Recommended**\n\n19\n_Last Updated on 06/07/2022_"
+      },
+      {
+        "number": 9,
+        "namespace": "C",
+        "chunk_id": "b2dfb62a-0ade-496d-9496-ff3268d68921",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 13,
+        "excerpt": "three (03) months prior to commencement of leave, for processing /\nobtaining approval of the Competent Authority.\n\n1.2. **Support Staff (Main Office)**\n\n1.2.1. **Pro-Rector / CoF&BD / Officers of Rector Sectt**\nAll types of leave except casual leave will be routed through HR\nDirectorate for processing and obtaining Rector’s approval. On approval,\nall concerned will be intimated accordingly. Officers employed at Rector’s\nSecretariat will get leave directly from the concerned Director/ Rector and\nintimate HR Directorate for maintaining record.\n\n1.2.2. **Directors / Equivalent**\n\nAll types of leave will be processed by the respective Directorate for\napproval from respective Pro-Rector / CoF&BD."
+      },
+      {
+        "number": 10,
+        "namespace": "C",
+        "chunk_id": "2eae3d71-7ba1-40e8-94ae-db267cbac769",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 9,
+        "excerpt": "6.8.2. Sabbatical Leave shall only be granted for undertaking research at a\nrecognized institution (local/ foreign).\n\n6.8.3. The period of study leave shall not be counted towards the period\nprescribed for entitlement to Sabbatical Leave.\n\n6.8.4. Normally, a faculty member shall not be allowed to proceed on\nSabbatical Leave or EOL during the middle of a semester.\n\n6.8.5. A faculty member proceeding on Sabbatical Leave may retain the\nresidential accommodation of the University provided that his family\nresides in the house/ apartment.\n\n6.8.6. Before proceeding on Sabbatical Leave, a faculty member shall\nexecute all legal formalities, including a bond.\n\n6.8.7. The faculty member after returning"
+      },
+      {
+        "number": 11,
+        "namespace": "C",
+        "chunk_id": "4c25cb8a-4c13-440a-8697-4eac6ea248ea",
+        "source_id": "290c85ed-61d3-45b9-9a94-59da5f6daede",
+        "source_name": "Recruitment of NUST Faculty.pdf",
+        "page": 5,
+        "excerpt": "## **Discipline-wise Faculty Requirement**\n\n|Deptt|Discipline|Specialized<br>Area|Prof|Assoc<br>Prof|Asst<br>Prof|Lec|RVF|\n|---|---|---|---|---|---|---|---|\n|||||||||\n|||||||||\n|||||||||\n|||||||||\n|||||||||\n\n**Note:** _Faculty cases concerning on going resignation, study/ex-Pakistan leave may also be highlighted_\n_in above state/requirement_ .\n\n_Last Updated on 22/02/2022_"
+      },
+      {
+        "number": 12,
+        "namespace": "C",
+        "chunk_id": "30bea1df-9c25-45fc-ad21-07ae6a4f8cf7",
+        "source_id": "38c6f09e-a920-4cb2-88f3-4eeb3628d532",
+        "source_name": "Leave Policy.pdf",
+        "page": 1,
+        "excerpt": "### **Approval and Revision Details**\n\n|Policy Code|09-27-006-02|\n|---|---|\n|**WP Title**|NUST Leave Rules (Revised)|\n|**WP No.**|WP No 3<br>|\n|**ECM No.**|27th ECM|\n|**Date**|23 May 2022|\n|**Sponsored by**|HR Dte|\n|**3rd Revision**|NIL|\n|**2nd Revision**|NIL<br>|\n|**1st Revision**|15th ECM dated 06/08/2013|\n\n1. **PURPOSE**\n\nThe intent of this policy document is to spell out entitlements and requirements regarding\nkinds of leave and procedure to apply.\n\n2. **TITLE AND COMMENCEMENT**\n\nThis document will be called “Leave Rules” and shall come into force forthwith.\n\n3. **APPLICABILITY**\n\n3.1. These Rules shall be applicable to all employees of the University except for\nthe following categories:"
+      },
+      {
+        "number": 13,
+        "namespace": "C",
+        "chunk_id": "e65caef4-5312-4db8-8947-43cf1aee3d81",
+        "source_id": "290c85ed-61d3-45b9-9a94-59da5f6daede",
+        "source_name": "Recruitment of NUST Faculty.pdf",
+        "page": 1,
+        "excerpt": "# **Recruitment of NUST Faculty**"
+      }
+    ],
+    "statuses": [
+      "Recursive search: collecting initial evidence…",
+      "Recursive search round 2: checking for missing evidence…",
+      "Recursive search round 3: checking for missing evidence…",
+      "Recursive search round 4: checking for missing evidence…"
+    ],
+    "error": null,
+    "seconds": 48.6,
+    "coverage": {
+      "selected_chunks": 13,
+      "retrieval_mode": "focused",
+      "contextualized_retrieval": true,
+      "followup_rewritten": true,
+      "followup_detected": true,
+      "retrieval_scope": "prior_cited_sources",
+      "conversation_memory_chars": 528,
+      "recursion_rounds": [
+        {
+          "round": 2,
+          "queries": 2,
+          "added_chunks": 2
+        },
+        {
+          "round": 3,
+          "queries": 1,
+          "added_chunks": 2
+        },
+        {
+          "round": 4,
+          "queries": 1,
+          "added_chunks": 1
+        }
+      ],
+      "recursion_stop_reason": "max_rounds",
+      "recursion_seed_budget_chars": 17930,
+      "eligible_sources": null,
+      "represented_sources": 2,
+      "chunks_per_source": {
+        "38c6f09e-a920-4cb2-88f3-4eeb3628d532": 11,
+        "290c85ed-61d3-45b9-9a94-59da5f6daede": 2
+      },
+      "embedding_index_model": "embeddinggemma:300m",
+      "query_embedding_model": "embeddinggemma:300m",
+      "embedding_dimensions": {
+        "index": 768,
+        "query": 768
+      },
+      "semantic_candidates": 321,
+      "semantic_hits": 120,
+      "semantic_fallback_reason": null,
+      "citation_retry_used": false,
+      "citation_retry_succeeded": false,
+      "generation_attempts": 1,
+      "validation_failures": [],
+      "scores": {
+        "547d9954-38d9-4c3e-9ae1-d0f756be2f90": {
+          "rrf": 0.03278688524590164,
+          "cosine": 0.6852727593326426
+        },
+        "256898b4-e0e6-41f6-8d74-97d9bb3ada7f": {
+          "rrf": 0.03200204813108039,
+          "cosine": 0.6153365567659127
+        },
+        "f8f93175-77e9-44e4-aeaf-16933ae498c9": {
+          "rrf": 0.031024531024531024,
+          "cosine": 0.5868076724817287
+        },
+        "dc1f8a2a-9ca4-452b-b474-3cb0e12c7fc9": {
+          "rrf": 0.03055037313432836,
+          "cosine": 0.5859421858994237
+        },
+        "5cbf7b02-d031-4aa9-b9dd-30f717464240": {
+          "rrf": 0.030330882352941176,
+          "cosine": 0.5996885895884903
+        },
+        "e3c96dfa-358b-40ee-b090-9cfb4a57b8df": {
+          "rrf": 0.02946912242686891,
+          "cosine": 0.5617977148973727
+        },
+        "73719665-0dd1-4ec3-bf87-24913dfe4cac": {
+          "rrf": 0.028991596638655463,
+          "cosine": 0.5722345896376551
+        },
+        "6436975b-8668-451b-bd0d-99b8ab093a88": {
+          "rrf": 0.026334026334026334,
+          "cosine": 0.5090824887974343
+        },
+        "b2dfb62a-0ade-496d-9496-ff3268d68921": {
+          "rrf": 0.02738970588235294,
+          "cosine": 0.36622176831275516
+        },
+        "2eae3d71-7ba1-40e8-94ae-db267cbac769": {
+          "rrf": 0.027242401779095628,
+          "cosine": 0.3824002413811799
+        },
+        "4c25cb8a-4c13-440a-8697-4eac6ea248ea": {
+          "rrf": 0.03057889822595705,
+          "cosine": 0.5112117763104739
+        },
+        "30bea1df-9c25-45fc-ad21-07ae6a4f8cf7": {
+          "rrf": 0.03021353930031804,
+          "cosine": 0.48138130262868745
+        },
+        "e65caef4-5312-4db8-8947-43cf1aee3d81": {
+          "rrf": 0.02439344262295082,
+          "cosine": 0.5295166715060524
+        }
+      },
+      "map_evidence_budget_chars": null,
+      "exhaustive_map_thinking": null,
+      "exhaustive_synthesis_thinking": null,
+      "min_similarity": 0.35,
+      "evidence_budget_chars": 35860,
+      "chat_input_budget_chars": 38438,
+      "config": {
+        "generation_model": "qwen3.5:4b",
+        "embedding_model": "embeddinggemma:300m",
+        "num_ctx": 16384,
+        "num_predict": 4096,
+        "temperature": 0.2,
+        "thinking": "off"
+      }
+    },
+    "question": "So I joined 9th Feb 2026, and I am on probation, so when can I take this 2-year EOL?"
+  },
+  {
+    "answer": "Based on the supplied evidence, the minimum and maximum faculty loads for an Associate Professor (Assoc Prof) depend on their status regarding PhD qualification, tenure track system participation, and specific roles such as supervision or institutional service. The following details are extracted from the Faculty Load Policy documents [C1], [C8], [C9], [C11].\n\n### 1. Minimum Teaching Load\nThe minimum mandatory teaching load is calculated based on a base requirement minus research and institutional service loads.\n\n*   **General Rule:** For faculty members, the formula is:  \n    `Minimum Teaching Load = 12 CHs – Research Load – Institutional Services` [C1].\n*   **Newly Joined PhD Faculty:** For newly joined PhD faculty (which includes Associate Professors joining after a PhD), the base requirement is lower:  \n    `Minimum Teaching Load = 8 CHs – Research Load – Institutional Services` [C1].\n*   **Specific Role Adjustments:** Certain roles have fixed loads that may affect the teaching load calculation. For example, Heads of Departments (HoDs) and Journal Editors in Chief (EIC) are assigned a specific **3 CH** institutional service load [C9].\n\n### 2. Maximum Faculty Load (Overall)\nThe overall faculty load varies based on the type of semester and the individual's role or research output.\n\n*   **Regular Semester:**  \n    The minimum overall load for a regular semester is generally around **12 CHs** (including teaching, research, and institutional services) [C8]. However, this can be higher if specific roles or research activities are involved.\n*   **Summer Semester:**  \n    Only faculty members who have met the required load in regular semesters receive remuneration for the summer semester; any deficiency is expected to be fulfilled through course offerings in the summer [C1].\n*   **Specific High-Load Roles:**  \n    *   **HoDs and Journal EICs:** Assigned a fixed **3 CH** equivalent load [C9].\n    *   **Top Prolific Researchers:** The Head of Institution (HoI) has discretion to assign up to **3 CHs** equivalent load as institutional service to the top 5% prolific researchers [C9].\n    *   **Pro Rector (Academics):** Can assign up to **3 CHs** equivalent load per semester to any faculty for specialized assignments [C9].\n\n### 3. Research Load Component\nThe research load component varies significantly based on PhD status, supervision duties, and funding levels.\n\n*   **General Range:** The research load varies from **0 to 6 CHs** equivalent per semester [C11].\n*   **PhD Supervision:**  \n    *   Supervisor: **1 CH** per student per semester [C11].\n    *   Co-supervisor: **0.5 CH** per student per semester [C11].\n*   **MS/MBA Supervision:** **0.75 CH** per student per semester [C11].\n*   **Funding (CHEL):** The load depends on the funding amount credited to NUST and the role:\n    *   Principal Investigator (PI): Ranges from **1 to 3 CHs** depending on funding (up to >10M) [C11].\n    *   Co-PI: Ranges from **0.5 to 1.5 CHs** [C11].\n    *   Member: Ranges from **0.25 to 0.75 CHs** [C11].\n\n### Summary Table for Associate Professor Loads\n\n| Component | Minimum Base (Regular Sem) | Maximum Potential (Regular Sem) | Notes |\n| :--- | :--- | :--- | :--- |\n| **Teaching Load** | **3 CHs** | Variable (Depends on Research/Service) | Formula: `12 - Research - Service` [C1] |\n| **Research Load** | **0 CHs** | **6 CHs** | Varies by PhD status, supervision, and funding [C11] |\n| **Institutional Service** | **0 CHs** | **3 CHs** (Max) | HoI discretion allows up to 3 CH for specific roles or prolific researchers [C9] |\n| **Total Overall Load** | **~12 CHs** | **>12 CHs** (e.g., with max research/service) | Base is ~12 CH; new PhD faculty start at ~8 CH base [C8, C1] |\n\n**Key Constraints:**\n*   Newly joined PhD faculty members receive a reduced base load of **8 CHs** instead of 12 CHs [C1].\n*   The policy applies starting from Fall 2023 [C12].\n*   Specific roles like HoD or EIC have fixed loads that may reduce the available teaching load capacity [C9].",
+    "citations": [
+      {
+        "number": 1,
+        "namespace": "C",
+        "chunk_id": "b634e9e4-d0db-4675-bb08-526d634710f2",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 2,
+        "excerpt": "c. For Lecturers / Lab Engrs, who join back NUST after completion of PhD,\n\nwill be given 8 CHs load to encourage their involvement in research\n\nactivities.\n\nd. Newly joined MS qualified faculty will be given 12 CHs load since the date\n\nof his/ her hiring.\n\n3. **Teaching Load (per semester)**\n\na. The minimum mandatory teaching load for the faculty member will be 3\n\nCHs of teaching in each semester. Overall teaching load requirement will\n\nbe ascertained based on the following calculations:\n\n(1) Minimum teaching load per semester = 12 – Research Load –\n\nInstitutional Services.\n\n(2) Minimum teaching load per semester for newly joined FM = 8 –\n\nResearch Load – Institutional Services.\n\nb. **Miscel"
+      },
+      {
+        "number": 2,
+        "namespace": "C",
+        "chunk_id": "2b369d6a-8b4c-4c1b-ad57-e45044042a4d",
+        "source_id": "67cca552-6e25-47ec-8ff2-be80e7489f1d",
+        "source_name": "Student Feedback Response Percentage.pdf",
+        "page": 2,
+        "excerpt": "All participants including HR Dte agreed that WP#2, “Ensuring 100% Students’ Feedback\n\nResponse” may be cancelled. Institutions to take necessary measures to ensure that maximum\n\nstudents submit feedback forms, however, achievement of minimum 80% Response Rate be\n\ntaken as threshold."
+      },
+      {
+        "number": 3,
+        "namespace": "C",
+        "chunk_id": "ec22b29d-c44d-4305-bd76-f35a14375890",
+        "source_id": "a2056e08-57b1-4c95-900b-b1ad229001e7",
+        "source_name": "HEC Journals and Publication Policy 2024-As amended wef 05-11-2025.pdf",
+        "page": 6,
+        "excerpt": "v. URL (Online Journals)\nvi. Content Access\nvii. Presence of Peer Review Policy\nviii. Contact Details\n\nix. Article Titles and Article Abstracts in English\n\nx. Regularity/Timeliness and/or Publication Volume/Frequency\nxi. Website Functionality/ Journal Format\nxii. Editorial board and Advisory board comprising of members with PhD degrees in relevant\n\nfields (i.e., area of publication) or FCPS/FRCS/MCPS degree for medical journals and\nstrong research and publications background Editorial board and Advisory board are\nseparate entities.\nxiii. Defined policy document\nxiv. At least two reviewers report for each article are required. Peer review via OJS/Scholar\n\nOne or any other online system will b"
+      },
+      {
+        "number": 4,
+        "namespace": "C",
+        "chunk_id": "46d03582-a65c-4a43-a0af-13e1ce9a7dd4",
+        "source_id": "97a023cb-2f61-43ce-8aa6-714328ba79db",
+        "source_name": "Gratuity.pdf",
+        "page": 1,
+        "excerpt": "## **Approval and Revision Details**\n\n|Policy Code|08-00-001-04|\n|---|---|\n|**WP Title**|NUST Gratuity Policy|\n|**WP No.**|Approved in BOG # 25|\n|**BOG No.**|25|\n|**Date**|7 February, 2020|\n|**Sponsored by**|Fin Dte|\n|**3rd Revision**|BOG#23 held on 21/02/2018|\n|**2nd Revision**|BOG#21 held on 28/10/2015|\n|**1st Revision**|BOG#17 held on 29/08/2012|\n\n|Features|Approved in BOG|\n|---|---|\n|1. <br>Gratuity will be payable to an employee from date of joining NUST as<br>contractual employee.|<br> <br>17th BOG meeting<br>held<br>on August 29, 2012|\n|2. <br>The minimum qualifying service to become eligible for gratuity benefit will be<br>5 years of continuous service from date of joining.|2. <br>Th"
+      },
+      {
+        "number": 5,
+        "namespace": "C",
+        "chunk_id": "d60a3d25-2d59-4b87-82c4-ede980f755a4",
+        "source_id": "b88075dc-1f3c-4a39-9c23-21a1f63d2797",
+        "source_name": "9 WP NO Supervision of PhD Students by Faculty Members -Email dated 10 Jan Acad Dte.pdf",
+        "page": 1,
+        "excerpt": "## **General**\n\n1. As per earlier practice, PhD faculty members were required to obtain the status\n\nof Approved Supervisor from HEC subject to meeting minimum requirements/eligibility\n\ncriteria in order to supervise PhD students. This status was subsequently renewed by\n\nHEC upon request from the faculty member. The approved supervisor status allowed\n\nuniversities to allocate supervision of PhD students to approved faculty members only.\n\n2. HEC recently approved the Graduate Education Policy (GEP), which was\n\nimplemented across all higher education institutions w.e.f semester Fall 2023. In\n\nclause 4.2 of Part-II of GEP, conditions and eligibility criteria for a faculty member have\n\nbeen highl"
+      },
+      {
+        "number": 6,
+        "namespace": "C",
+        "chunk_id": "bee51000-b616-4a86-abd6-2b33d7a510df",
+        "source_id": "f03ce0b0-a551-4ac0-b81b-8a77b8388e03",
+        "source_name": "Coursework-based MS program.pdf",
+        "page": 2,
+        "excerpt": "## 4. Selection of students for coursework-based MS program\n\na. MS students, after completion of coursework with minimum CGPA as per\n\ndegree requirement will apply for a coursework-based MS program to its\n\ndepartment.\n\nb. Students need to submit an application to the respective department along with\n\ndocumentary evidence to opt for a coursework degree.\n\nc. The concerned department will prepare all the submitted applications for\n\nprocessing through FBS.\n\nd. FBS will scrutinize and recommend/approve the genuine cases.\n\ne. Cases will be dealt on first come, first serve basis.\n\nf. For cases over 20% or students having CGPA 3.50 or above, the respective\n\ninstitution will process the cases for app"
+      },
+      {
+        "number": 7,
+        "namespace": "C",
+        "chunk_id": "585fcb30-c188-4e70-a471-2ec1da80cc7c",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 3,
+        "excerpt": "## 5. Institutional Services Load (per semester)\n\na. Assoc Dean/Director Acad (CEME) will be given 4 CH equivalent load\n\nb. Maximum permissible institutional services load can go up to 3 CH. The\n\nguidelines for allocating institutional serviced load is as follow:\n\n3"
+      },
+      {
+        "number": 8,
+        "namespace": "C",
+        "chunk_id": "5cf18aa3-0938-42aa-9bdf-06ea31266c17",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 1,
+        "excerpt": "|Col1|Approval and Revision Details|\n|---|---|\n|**Policy Code**|01-66-008-05|\n|**WP Title**|Revision of Faculty Load Policy|\n|**WP No.**|12|\n|**ACM No.**|66|\n|**Date**|01 September, 2023|\n|**Sponsored by**|Acad Dte<br>|\n|**4th Revision**|WP#31, 63rd ACM, 28/6/2022<br>|\n|**3rd Revision**|WP#3, 58th ACM, 09/12/2020|\n|**2nd Revision**|Minute Sheet dated 7April, 2014<br>|\n|**1st Revision**|WP#30, 32nd ACM, 24/02/2010|\n\n**Background**\n\n1. The subject policy was first introduced in 2010 and got refined in 2014. After six\n\nyears of implementation, in 2020, the policy was revisited. The purpose to revise the\n\nsubject policy in the year 2020 was to minimize the practice of hiring TVFs and improve\n\nre"
+      },
+      {
+        "number": 9,
+        "namespace": "C",
+        "chunk_id": "b97bf14d-49e2-4261-9714-189a0996a140",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 4,
+        "excerpt": "(1) HoDs and NUST Journal Editors in Chief (EIC) will be given 3 CH\n\nequivalent load\n\n(2) DCE, UG/PG Program Heads / Program Coordinators, Program\n\nDirectors, DLQEC, Project Directors of PC-1s and Student\n\nCoordinators will be given 3 CH equivalent load.\n\n(3) OBE Coordinator load will be given 2CH load for each UG Engg\n\nprogram.\n\n(4) Head of the Institution has the discretion to assign up to 1 CH\n\nequivalent load per FM to any institutional service, i.e., IFPI, Alumni\n\nCoordination, FYP Coordinator, Student Advisor, LPC member, etc.\n\n(5) Student Advisors (SAS) and Institutional Focal Person for\n\nInternationalization (IFPI) will be given 1 CH equivalent load.\n\n(6) HoI has the discretion to gi"
+      },
+      {
+        "number": 10,
+        "namespace": "C",
+        "chunk_id": "9fbe578d-85f8-4354-8518-895adc09308c",
+        "source_id": "67cca552-6e25-47ec-8ff2-be80e7489f1d",
+        "source_name": "Student Feedback Response Percentage.pdf",
+        "page": 2,
+        "excerpt": "## **Proposal**\n\n4. **Working Paper # 2, “Ensuring 100% Students’ Feedback Response** ” approved\n\nin 57 [th] ACM may be cancelled.\n\n5. Minimum 80% Response Rate of students’ feedback be ensured by all institutions,\n\nhowever, all necessary measures may be taken to ensure that maximum students submit the\n\nfeedback forms.\n\n6. ICT Dte to ensure following:\n\na. Modify the **Qalam** to deny access / service to students until they submit the\n\nfeedback forms as per specified schedule. This includes denial of access for\n\nregistration of courses, access to results, submission of clearance forms etc.\n\nb. Fee challan will still be accessible to students."
+      },
+      {
+        "number": 11,
+        "namespace": "C",
+        "chunk_id": "9d600b82-afb0-4d4c-9fcf-477523c81e5e",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 3,
+        "excerpt": "4. **Research Load (per semester)**\n\na. The research load will vary from 0 to 6 CH equivalent load.\n\nb. For supervision of PhD students:\n\n(1) 1 CH equivalent load per student per semester will be given to the\n\nsupervisor from the date of admission till PPCM / thesis submission.\n\n(2) 0.5 CH equivalent load per student per semester will be given to the\n\nco-supervisor from the formulation of GEC till PPCM / thesis\n\nsubmission.\n\nc. For supervision of an MS/MBA/equivalent student, 0.75 CH equivalent\n\nload per student per semester will be given from the formulation of GEC\n\ntill final defense.\n\nd. For supervision of FYP student / group: 0.30 CH equivalent load will be\n\ngiven for supervising each FY"
+      },
+      {
+        "number": 12,
+        "namespace": "C",
+        "chunk_id": "69a959b9-43f4-4ca6-9e44-bdc7ae95ef0a",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 4,
+        "excerpt": "#### 6. The policy will be applicable w.e.f Fall 2023.\n\n4"
+      }
+    ],
+    "statuses": [
+      "Recursive search: collecting initial evidence…",
+      "Recursive search round 2: checking for missing evidence…",
+      "Recursive search round 3: checking for missing evidence…"
+    ],
+    "error": null,
+    "seconds": 20.5,
+    "coverage": {
+      "selected_chunks": 12,
+      "retrieval_mode": "focused",
+      "contextualized_retrieval": true,
+      "followup_rewritten": true,
+      "followup_detected": false,
+      "retrieval_scope": "notebook",
+      "conversation_memory_chars": 545,
+      "recursion_rounds": [
+        {
+          "round": 2,
+          "queries": 3,
+          "added_chunks": 2
+        },
+        {
+          "round": 3,
+          "queries": 1,
+          "added_chunks": 0
+        }
+      ],
+      "recursion_stop_reason": "no_new_chunks",
+      "recursion_seed_budget_chars": 17930,
+      "eligible_sources": null,
+      "represented_sources": 6,
+      "chunks_per_source": {
+        "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be": 6,
+        "67cca552-6e25-47ec-8ff2-be80e7489f1d": 2,
+        "a2056e08-57b1-4c95-900b-b1ad229001e7": 1,
+        "97a023cb-2f61-43ce-8aa6-714328ba79db": 1,
+        "b88075dc-1f3c-4a39-9c23-21a1f63d2797": 1,
+        "f03ce0b0-a551-4ac0-b81b-8a77b8388e03": 1
+      },
+      "embedding_index_model": "embeddinggemma:300m",
+      "query_embedding_model": "embeddinggemma:300m",
+      "embedding_dimensions": {
+        "index": 768,
+        "query": 768
+      },
+      "semantic_candidates": 321,
+      "semantic_hits": 97,
+      "semantic_fallback_reason": null,
+      "citation_retry_used": false,
+      "citation_retry_succeeded": false,
+      "generation_attempts": 1,
+      "validation_failures": [],
+      "scores": {
+        "b634e9e4-d0db-4675-bb08-526d634710f2": {
+          "rrf": 0.028693528693528692,
+          "cosine": 0.4908728978869497
+        },
+        "2b369d6a-8b4c-4c1b-ad57-e45044042a4d": {
+          "rrf": 0.013888888888888888,
+          "cosine": 0.257078698713603
+        },
+        "ec22b29d-c44d-4305-bd76-f35a14375890": {
+          "rrf": 0.011904761904761904,
+          "cosine": 0.2630970870093078
+        },
+        "46d03582-a65c-4a43-a0af-13e1ce9a7dd4": {
+          "rrf": 0.010416666666666666,
+          "cosine": 0.17283007875206066
+        },
+        "d60a3d25-2d59-4b87-82c4-ede980f755a4": {
+          "rrf": 0.010101010101010102,
+          "cosine": 0.2941559564750453
+        },
+        "bee51000-b616-4a86-abd6-2b33d7a510df": {
+          "rrf": 0.009259259259259259,
+          "cosine": 0.24506348955307314
+        },
+        "585fcb30-c188-4e70-a471-2ec1da80cc7c": {
+          "rrf": 0.025165372447512224,
+          "cosine": 0.5380490629489865
+        },
+        "5cf18aa3-0938-42aa-9bdf-06ea31266c17": {
+          "rrf": 0.024603608529250955,
+          "cosine": 0.5245494250467676
+        },
+        "b97bf14d-49e2-4261-9714-189a0996a140": {
+          "rrf": 0.0136986301369863,
+          "cosine": 0.4265208799836218
+        },
+        "9fbe578d-85f8-4354-8518-895adc09308c": {
+          "rrf": 0.012345679012345678,
+          "cosine": 0.25422012759764423
+        },
+        "9d600b82-afb0-4d4c-9fcf-477523c81e5e": {
+          "rrf": 0.02668564312399929,
+          "cosine": 0.4429590460205452
+        },
+        "69a959b9-43f4-4ca6-9e44-bdc7ae95ef0a": {
+          "rrf": 0.00847457627118644,
+          "cosine": 0.38543484717574733
+        }
+      },
+      "map_evidence_budget_chars": null,
+      "exhaustive_map_thinking": null,
+      "exhaustive_synthesis_thinking": null,
+      "min_similarity": 0.35,
+      "evidence_budget_chars": 35861,
+      "chat_input_budget_chars": 38438,
+      "config": {
+        "generation_model": "qwen3.5:4b",
+        "embedding_model": "embeddinggemma:300m",
+        "num_ctx": 16384,
+        "num_predict": 4096,
+        "temperature": 0.2,
+        "thinking": "off"
+      }
+    },
+    "question": "What are the min and max faculty loads for an associate professor?"
+  },
+  {
+    "answer": "Based on the supplied evidence, your total faculty load is calculated by summing the Teaching Load, Research Load (for supervision), and any applicable Institutional Services Load. The calculation depends on whether you are considered a \"newly joined\" faculty member or an established one, as well as specific roles like co-supervisor status.\n\n### 1. Teaching Load Calculation\nYou are teaching **3 different MS courses**. According to the Faculty Load Policy:\n*   For each course taught, **1 CH** is counted in the teaching load [C3].\n*   Therefore, teaching 3 courses contributes **3 CH** to your total load [C3].\n\n### 2. Research Load Calculation (Supervision)\nYour research load depends on your role as a supervisor for each student:\n*   **PhD Supervision:** You have taken up **1 PhD supervision**.\n    *   The policy states that **1 CH** equivalent load is given to the supervisor from the date of admission till thesis submission [C4].\n    *   Contribution: **1 CH**.\n*   **MS Supervision:** You have taken up **8 MS supervisions**.\n    *   The policy states that for supervision of an MS/MBA/equivalent student, **0.75 CH** equivalent load is given per semester [C4].\n    *   Calculation: $8 \\text{ students} \\times 0.75 \\text{ CH/student} = 6 \\text{ CH}$.\n    *   Contribution: **6 CH**.\n\n*Note on \"Newly Joined\" Status:* The policy distinguishes between newly joined PhD faculty (who get an initial reduced load of 8 CH total) and established faculty [C3]. Since you are currently teaching MS courses and supervising, you likely fall under the standard calculation rules unless explicitly classified as a \"newly joined PhD faculty member\" in your HR record. Assuming standard status:\n*   Base Teaching Load (Minimum): **12 CH** [C3]\n*   Base Research Load (Minimum): **0 CH** (unless funded projects exist) [C4]\n\nHowever, the specific loads you are earning via supervision add directly to this base.\n\n### 3. Total Estimated Load\nSumming the components:\n*   Teaching Load: **3 CH** (from 3 MS courses)\n*   Research Load (Supervision): **1 CH** (PhD) + **6 CH** (8 MS) = **7 CH**\n*   **Subtotal:** $3 + 7 = \\mathbf{10 \\text{ CH}}$\n\n### Important Considerations\n1.  **Institutional Services:** If you hold a role such as Head of Department, Program Director, or Student Advisor, additional load applies [C5]. For example, a Student Advisor (SAS) gets **1 CH** [C5], and a HoD gets **3 CH** [C5].\n2.  **Minimum Load Requirement:** The policy states the minimum overall faculty load for a regular semester should be around **12 CH** [C3]. Your calculated load of **10 CH** (without institutional services) is below this minimum. You may need to fulfill the deficiency through course offering in the summer semester or by taking on additional institutional service roles [C3].\n3.  **Newly Joined Status:** If you are classified as a \"newly joined PhD faculty member,\" your base load is reduced to **8 CH** initially [C3]. In that case, your total would be $8 (\\text{base}) + 7 (\\text{supervision}) = \\mathbf{15 \\text{ CH}}$, which exceeds the minimum requirement.\n\n**Final Answer:**\nYour current calculated load is **10 CH** (3 CH for teaching 3 MS courses + 7 CH for supervision: 1 PhD + 8 MS). If you do not have additional institutional service roles, this falls short of the recommended minimum of 12 CH [C3], potentially requiring summer semester course offerings to meet the requirement [C3].\n\n**Not reported in supplied evidence:**\n*   Your specific classification as \"newly joined\" vs. established faculty (requires HR record verification).\n*   Whether you have any funded research projects contributing to your load (could increase load up to 6 CH max) [C4].\n*   Specific details about your leave status or probation period regarding EOL (Leave Out of Pakistan), as the supplied evidence does not contain policies on leaves, probation, or Leave Without Pay.",
+    "citations": [
+      {
+        "number": 1,
+        "namespace": "C",
+        "chunk_id": "5cf18aa3-0938-42aa-9bdf-06ea31266c17",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 1,
+        "excerpt": "|Col1|Approval and Revision Details|\n|---|---|\n|**Policy Code**|01-66-008-05|\n|**WP Title**|Revision of Faculty Load Policy|\n|**WP No.**|12|\n|**ACM No.**|66|\n|**Date**|01 September, 2023|\n|**Sponsored by**|Acad Dte<br>|\n|**4th Revision**|WP#31, 63rd ACM, 28/6/2022<br>|\n|**3rd Revision**|WP#3, 58th ACM, 09/12/2020|\n|**2nd Revision**|Minute Sheet dated 7April, 2014<br>|\n|**1st Revision**|WP#30, 32nd ACM, 24/02/2010|\n\n**Background**\n\n1. The subject policy was first introduced in 2010 and got refined in 2014. After six\n\nyears of implementation, in 2020, the policy was revisited. The purpose to revise the\n\nsubject policy in the year 2020 was to minimize the practice of hiring TVFs and improve\n\nre"
+      },
+      {
+        "number": 2,
+        "namespace": "C",
+        "chunk_id": "46d03582-a65c-4a43-a0af-13e1ce9a7dd4",
+        "source_id": "97a023cb-2f61-43ce-8aa6-714328ba79db",
+        "source_name": "Gratuity.pdf",
+        "page": 1,
+        "excerpt": "## **Approval and Revision Details**\n\n|Policy Code|08-00-001-04|\n|---|---|\n|**WP Title**|NUST Gratuity Policy|\n|**WP No.**|Approved in BOG # 25|\n|**BOG No.**|25|\n|**Date**|7 February, 2020|\n|**Sponsored by**|Fin Dte|\n|**3rd Revision**|BOG#23 held on 21/02/2018|\n|**2nd Revision**|BOG#21 held on 28/10/2015|\n|**1st Revision**|BOG#17 held on 29/08/2012|\n\n|Features|Approved in BOG|\n|---|---|\n|1. <br>Gratuity will be payable to an employee from date of joining NUST as<br>contractual employee.|<br> <br>17th BOG meeting<br>held<br>on August 29, 2012|\n|2. <br>The minimum qualifying service to become eligible for gratuity benefit will be<br>5 years of continuous service from date of joining.|2. <br>Th"
+      },
+      {
+        "number": 3,
+        "namespace": "C",
+        "chunk_id": "b634e9e4-d0db-4675-bb08-526d634710f2",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 2,
+        "excerpt": "c. For Lecturers / Lab Engrs, who join back NUST after completion of PhD,\n\nwill be given 8 CHs load to encourage their involvement in research\n\nactivities.\n\nd. Newly joined MS qualified faculty will be given 12 CHs load since the date\n\nof his/ her hiring.\n\n3. **Teaching Load (per semester)**\n\na. The minimum mandatory teaching load for the faculty member will be 3\n\nCHs of teaching in each semester. Overall teaching load requirement will\n\nbe ascertained based on the following calculations:\n\n(1) Minimum teaching load per semester = 12 – Research Load –\n\nInstitutional Services.\n\n(2) Minimum teaching load per semester for newly joined FM = 8 –\n\nResearch Load – Institutional Services.\n\nb. **Miscel"
+      },
+      {
+        "number": 4,
+        "namespace": "C",
+        "chunk_id": "9d600b82-afb0-4d4c-9fcf-477523c81e5e",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 3,
+        "excerpt": "4. **Research Load (per semester)**\n\na. The research load will vary from 0 to 6 CH equivalent load.\n\nb. For supervision of PhD students:\n\n(1) 1 CH equivalent load per student per semester will be given to the\n\nsupervisor from the date of admission till PPCM / thesis submission.\n\n(2) 0.5 CH equivalent load per student per semester will be given to the\n\nco-supervisor from the formulation of GEC till PPCM / thesis\n\nsubmission.\n\nc. For supervision of an MS/MBA/equivalent student, 0.75 CH equivalent\n\nload per student per semester will be given from the formulation of GEC\n\ntill final defense.\n\nd. For supervision of FYP student / group: 0.30 CH equivalent load will be\n\ngiven for supervising each FY"
+      },
+      {
+        "number": 5,
+        "namespace": "C",
+        "chunk_id": "b97bf14d-49e2-4261-9714-189a0996a140",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 4,
+        "excerpt": "(1) HoDs and NUST Journal Editors in Chief (EIC) will be given 3 CH\n\nequivalent load\n\n(2) DCE, UG/PG Program Heads / Program Coordinators, Program\n\nDirectors, DLQEC, Project Directors of PC-1s and Student\n\nCoordinators will be given 3 CH equivalent load.\n\n(3) OBE Coordinator load will be given 2CH load for each UG Engg\n\nprogram.\n\n(4) Head of the Institution has the discretion to assign up to 1 CH\n\nequivalent load per FM to any institutional service, i.e., IFPI, Alumni\n\nCoordination, FYP Coordinator, Student Advisor, LPC member, etc.\n\n(5) Student Advisors (SAS) and Institutional Focal Person for\n\nInternationalization (IFPI) will be given 1 CH equivalent load.\n\n(6) HoI has the discretion to gi"
+      },
+      {
+        "number": 6,
+        "namespace": "C",
+        "chunk_id": "585fcb30-c188-4e70-a471-2ec1da80cc7c",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 3,
+        "excerpt": "## 5. Institutional Services Load (per semester)\n\na. Assoc Dean/Director Acad (CEME) will be given 4 CH equivalent load\n\nb. Maximum permissible institutional services load can go up to 3 CH. The\n\nguidelines for allocating institutional serviced load is as follow:\n\n3"
+      },
+      {
+        "number": 7,
+        "namespace": "C",
+        "chunk_id": "d9fbc75f-a873-4a55-87cb-de2a675846f3",
+        "source_id": "97a023cb-2f61-43ce-8aa6-714328ba79db",
+        "source_name": "Gratuity.pdf",
+        "page": 2,
+        "excerpt": "|6. In line with NUST Statutes provisions, uniformed personnel including officers,<br>JCOs and soldiers are posted NUST for an unspecified period against the NUST posts.<br>Some of these uniformed personnel get retired from military service while in NUST and<br>re-employed on contract against the NUST authorized posts without break for continuity<br>and to benefit from their experience at NUST. The period in NUST by an officer while<br>in uniform, before joining NUST on contract, may be counted for calculating total<br>service in NUST for the purpose of gratuity. However gratuity is to be paid only for the<br>period of contractual service in NUST.|Col2|\n|---|---|\n|7. <br>In case of death of "
+      },
+      {
+        "number": 8,
+        "namespace": "C",
+        "chunk_id": "8febd39e-d09b-4cf2-8ec2-42e2f02cbf00",
+        "source_id": "97a023cb-2f61-43ce-8aa6-714328ba79db",
+        "source_name": "Gratuity.pdf",
+        "page": 3,
+        "excerpt": "**Calculation/Formula of Gratuity as is under:**\n\nAll contractual employees qualifying the above stated criteria will be paid gratuity as per following\n\nconditions:\n\n**Length of Service** **Gratuity Entitlement**\n\na. Less than 5 years - Zero\n\nb. 5 years or more but less\n\nthan 10 years\n\n- 50% of last drawn gross pay for each\n\ncompleted year of service (Except Condition\n\non Sr. 07 & 08)\n\nc. 10 years or more - 100% of last drawn gross pay of each\n\ncompleted year of service\n\n_Last updated on 30/08/2022_"
+      },
+      {
+        "number": 9,
+        "namespace": "C",
+        "chunk_id": "01b860e7-24ca-460d-87f7-a7fd4ea33233",
+        "source_id": "cd1350a6-fc53-47ad-bf65-f71193d841fd",
+        "source_name": "Graduate-Education-Policy.pdf",
+        "page": 21,
+        "excerpt": "x. The university/DAI/HEI shall allocate supervision/research space to the doctoral\nstudents.\nxi. PhD research work completed under supervision is a shared property of supervisor\nand supervisee. All publications resulting from such research shall reflect the\nauthorship of both parties and shall be subject to mutual consent.\nxii. The guidelines for PhD supervision should be followed in letter and spirit, as\nprescribed in this policy.\n\n**4.2.2.** **Criteria to Be a PhD Supervisor**\nTo be a PhD research supervisor, an individual shall meet the following requirements:\n\n**i.** **General Requirements:**\n\na) A PhD degree from an HEC recognized national/international university/degree\n\nawarding inst"
+      },
+      {
+        "number": 10,
+        "namespace": "C",
+        "chunk_id": "0ce9f02c-8a27-4ef2-b7fe-3e555d7a90fe",
+        "source_id": "9f5803af-4dbf-48dd-ab8f-ccd63dd02791",
+        "source_name": "Student Feedback Weight in Faculty AAR.pdf",
+        "page": 2,
+        "excerpt": "2. The existing and proposed changes in the Teaching Proficiency section of the AAR are\n\nattached as Annex A. In the existing AAR, the section on _**‘Teaching Proficiency’**_ includes seven\n\nparameters of which two _**(Student Feedback and Class Audit)**_ carry the most weight (22.5% each),\n\nin the overall score of this section. While the feedback is given by the students, the class audit is\n\neither conducted by the HoD or a senior faculty in the department. Therefore, it is proposed that the\n\nweight be calibrated between these two parameters as the class audit is conducted by experienced\n\nand mature individuals who have the relevant knowledge and expertise in the field to evaluate the\n\nfacu"
+      },
+      {
+        "number": 11,
+        "namespace": "C",
+        "chunk_id": "3d813036-ac3b-4aac-a5fc-e20a67b14033",
+        "source_id": "cd1350a6-fc53-47ad-bf65-f71193d841fd",
+        "source_name": "Graduate-Education-Policy.pdf",
+        "page": 20,
+        "excerpt": "## **4. GOVERNING THE RESEARCH SUPERVISION**\n\n**4.1** **Principles and Purposes**\nTo inculcate a research culture to produce high-quality research, policies and procedures\ngoverning the overall system of research in a university/DAI/HEI must be in place. The HEC\nguidelines for improvements are as follows.\n\n**4.2** **Supervision of Doctoral Dissertation**\n\n**4.2.1.** **General Conditions to Supervise Doctoral Research** **[14]**\nThe following general guidelines shall, at least, be observed while allocating a PhD\nsupervisor. At the time of supervisor allocation, the supervisors:\n\ni. Shall be a PhD degree holder complying with the criteria and standards provided in\nthis policy.\nii. Must be rele"
+      },
+      {
+        "number": 12,
+        "namespace": "C",
+        "chunk_id": "fa7a3010-2b56-4a45-8181-6807e354218c",
+        "source_id": "cd1350a6-fc53-47ad-bf65-f71193d841fd",
+        "source_name": "Graduate-Education-Policy.pdf",
+        "page": 12,
+        "excerpt": "a. Either need to complete 30 credit hours of course work or\nb. Complete **24** credit hours of coursework along with a minimum of six (6 **)** credit\n\nhours for research work/thesis.\nc. In case a degree is offered with research work, the university shall develop a\n\npolicy regarding thesis defense and evaluation through its statutory bodies.\n\n**2.3 Degree Completion Timeline** [3]\ni. The MS/MPhil degree shall be awarded by the universities not before the\ncompletion of 1.5 years or three (03) regular semesters and not after completion of\nfour (04) years or eight (08) regular semesters, save exceptions mentioned at clause\n2.3(ii).\nii. In case a student is unable to secure an MS/MPhil within th"
+      },
+      {
+        "number": 13,
+        "namespace": "C",
+        "chunk_id": "69a959b9-43f4-4ca6-9e44-bdc7ae95ef0a",
+        "source_id": "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be",
+        "source_name": "Faculty load.pdf",
+        "page": 4,
+        "excerpt": "#### 6. The policy will be applicable w.e.f Fall 2023.\n\n4"
+      }
+    ],
+    "statuses": [
+      "Recursive search: collecting initial evidence…",
+      "Recursive search round 2: checking for missing evidence…",
+      "Recursive search round 3: checking for missing evidence…",
+      "Recursive search round 4: checking for missing evidence…"
+    ],
+    "error": null,
+    "seconds": 24.5,
+    "coverage": {
+      "selected_chunks": 13,
+      "retrieval_mode": "focused",
+      "contextualized_retrieval": true,
+      "followup_rewritten": true,
+      "followup_detected": true,
+      "retrieval_scope": "prior_cited_sources",
+      "conversation_memory_chars": 700,
+      "recursion_rounds": [
+        {
+          "round": 2,
+          "queries": 2,
+          "added_chunks": 5
+        },
+        {
+          "round": 3,
+          "queries": 2,
+          "added_chunks": 1
+        },
+        {
+          "round": 4,
+          "queries": 3,
+          "added_chunks": 0
+        }
+      ],
+      "recursion_stop_reason": "no_new_chunks",
+      "recursion_seed_budget_chars": 17829,
+      "eligible_sources": null,
+      "represented_sources": 4,
+      "chunks_per_source": {
+        "4e0bc5c0-b48f-40c6-9ce2-b24a9c1d59be": 6,
+        "97a023cb-2f61-43ce-8aa6-714328ba79db": 3,
+        "cd1350a6-fc53-47ad-bf65-f71193d841fd": 3,
+        "9f5803af-4dbf-48dd-ab8f-ccd63dd02791": 1
+      },
+      "embedding_index_model": "embeddinggemma:300m",
+      "query_embedding_model": "embeddinggemma:300m",
+      "embedding_dimensions": {
+        "index": 768,
+        "query": 768
+      },
+      "semantic_candidates": 321,
+      "semantic_hits": 15,
+      "semantic_fallback_reason": null,
+      "citation_retry_used": false,
+      "citation_retry_succeeded": false,
+      "generation_attempts": 1,
+      "validation_failures": [],
+      "scores": {
+        "5cf18aa3-0938-42aa-9bdf-06ea31266c17": {
+          "rrf": 0.03252247488101534,
+          "cosine": 0.621158519058244
+        },
+        "46d03582-a65c-4a43-a0af-13e1ce9a7dd4": {
+          "rrf": 0.021507785370225158,
+          "cosine": 0.2477608819363659
+        },
+        "b634e9e4-d0db-4675-bb08-526d634710f2": {
+          "rrf": 0.03252247488101534,
+          "cosine": 0.5688974944510614
+        },
+        "9d600b82-afb0-4d4c-9fcf-477523c81e5e": {
+          "rrf": 0.030798389007344232,
+          "cosine": 0.4047221510780117
+        },
+        "b97bf14d-49e2-4261-9714-189a0996a140": {
+          "rrf": 0.03055037313432836,
+          "cosine": 0.4820692854797678
+        },
+        "585fcb30-c188-4e70-a471-2ec1da80cc7c": {
+          "rrf": 0.029386529386529386,
+          "cosine": 0.5452711391709852
+        },
+        "d9fbc75f-a873-4a55-87cb-de2a675846f3": {
+          "rrf": 0.021223874165050637,
+          "cosine": 0.20377811488534514
+        },
+        "8febd39e-d09b-4cf2-8ec2-42e2f02cbf00": {
+          "rrf": 0.015873015873015872,
+          "cosine": 0.2252641833681562
+        },
+        "01b860e7-24ca-460d-87f7-a7fd4ea33233": {
+          "rrf": 0.03200204813108039,
+          "cosine": 0.5404339556392438
+        },
+        "0ce9f02c-8a27-4ef2-b7fe-3e555d7a90fe": {
+          "rrf": 0.010416666666666666,
+          "cosine": 0.28239531347494956
+        },
+        "3d813036-ac3b-4aac-a5fc-e20a67b14033": {
+          "rrf": 0.030090497737556562,
+          "cosine": 0.5262339471453575
+        },
+        "fa7a3010-2b56-4a45-8181-6807e354218c": {
+          "rrf": 0.029827662395050816,
+          "cosine": 0.5498668303845324
+        },
+        "69a959b9-43f4-4ca6-9e44-bdc7ae95ef0a": {
+          "rrf": 0.011627906976744186,
+          "cosine": 0.43817448960368904
+        }
+      },
+      "map_evidence_budget_chars": null,
+      "exhaustive_map_thinking": null,
+      "exhaustive_synthesis_thinking": null,
+      "min_similarity": 0.35,
+      "evidence_budget_chars": 35659,
+      "chat_input_budget_chars": 38438,
+      "config": {
+        "generation_model": "qwen3.5:4b",
+        "embedding_model": "embeddinggemma:300m",
+        "num_ctx": 16384,
+        "num_predict": 4096,
+        "temperature": 0.2,
+        "thinking": "off"
+      }
+    },
+    "question": "so i am teaching 3 different MS courses and have taken up 8 MS and 1 PhD supervisions, so how much my total load?"
+  }
+]

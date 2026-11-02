@@ -161,6 +161,7 @@ def test_failed_attempt_codes_are_persisted_without_drafts(tmp_path, monkeypatch
     async def inline(fn, *args, **kwargs):
         return fn(*args, **kwargs)
     monkeypatch.setattr(chat, "run_in_threadpool", inline)
+    monkeypatch.setattr(chat, "RETRIEVAL_MAX_ROUNDS", 0)
     provider = ScriptedProvider(["Rejected claim [C9]", "Rejected claim [C9]"])
     monkeypatch.setattr(models, "provider", provider)
     notebook_id, conversation_id, source_id, chunk_id = [db.uid() for _ in range(4)]

@@ -11,6 +11,7 @@ services:
       NUM_CTX: ${NUM_CTX:-16384}
       TEMPERATURE: ${TEMPERATURE:-0.2}
       THINKING: ${THINKING:-auto}
+      RETRIEVAL_ROUNDS: ${RETRIEVAL_ROUNDS:-3}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-embeddinggemma:300m} # nomic-embed-text:latest, qwen3-embedding:0.6b
       RETRIEVAL_MIN_SIMILARITY: ${RETRIEVAL_MIN_SIMILARITY:-0.35}
       DATA_DIR: /app/data

@@ -86,6 +86,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(models, "provider", fake)
     monkeypatch.setattr(models, "embedding_model_digest", lambda: "test-digest")
     monkeypatch.setattr(retrieval, "rebuild_embedding_index", lambda *args, **kwargs: None)
+    monkeypatch.setattr(chat, "RETRIEVAL_MAX_ROUNDS", 0)  # Existing tests exercise one retrieval pass.
     with TestClient(main.app) as client:
         notebook = client.post("/api/notebooks", json={"title": "Research"}).json()
         yield client, notebook["id"], fake, tmp_path
@@ -309,6 +310,9 @@ def test_chat_passes_bounded_user_history_to_retrieval(env, monkeypatch):
         for question in questions:
             conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)", (db.uid(), conversation, "user", question, "[]", db.now()))
             conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)", (db.uid(), conversation, "assistant", "Prior assistant answer is not evidence", "[]", db.now()))
+    async def keep_question(question, history):
+        return question, False, None  # Emulate an unavailable follow-up rewrite.
+    monkeypatch.setattr(chat, "rewrite_followup", keep_question)
     original = retrieval.retrieve
     seen = []
     def capture(*args, **kwargs):
@@ -323,6 +327,190 @@ def test_chat_passes_bounded_user_history_to_retrieval(env, monkeypatch):
     assert run["coverage"]["represented_sources"] == 1
     assert sum(run["coverage"]["chunks_per_source"].values()) == 1
     assert not any(text in json.dumps(run) for text in questions + ["And what about him?", "Prior assistant answer is not evidence", "Asim Waris and Farrukh collaborated"])
+
+
+def test_followup_detection_covers_paraphrased_and_long_followups():
+    assert retrieval.is_contextual_followup("I am asking about long 2 years leave!")
+    assert retrieval.is_contextual_followup("So I joined 9th Feb 2026, and I am on probation, so when can I take this 2-year EOL?")
+    assert retrieval.is_contextual_followup(
+        "so i am teaching 3 different MS courses and have taken up 8 MS and 1 PhD supervisions, so how much my total load?")
+    assert retrieval.is_contextual_followup("And what about him?")
+    assert not retrieval.is_contextual_followup("What are the min and max faculty loads for an associate professor?")
+    assert not retrieval.is_contextual_followup("What classifier was used in paper X?")
+
+
+def test_planner_reply_parsing():
+    assert chat.parse_planner_reply('prefix {"sufficient": false, "queries": ["alpha", "beta"]} suffix') == {
+        "sufficient": False, "queries": ["alpha", "beta"]}
+    assert chat.parse_planner_reply('{"sufficient": "true", "queries": []}') == {"sufficient": True, "queries": []}
+    assert chat.parse_planner_reply("sufficient: true") == {"sufficient": True, "queries": []}
+    assert chat.parse_planner_reply('{"sufficient": true, "queries": [1, {"x": 2}, "ok", ""]}') == {
+        "sufficient": True, "queries": ["ok"]}
+    assert chat.parse_planner_reply("garbage without json") is None
+    assert chat.parse_planner_reply("") is None
+
+
+def test_recursive_gap_filling_adds_new_evidence(env, monkeypatch):
+    client, nid, _, _ = env
+    first_sid, first_cid = add_source(nid, "alpha evidence", name="Alpha.pdf", vector=(1.0, 0.0))
+    second_sid, second_cid = add_source(nid, "beta facts", name="Beta.pdf", vector=(0.1, 0.995))
+    monkeypatch.setattr(chat, "RETRIEVAL_MAX_ROUNDS", 2)
+    provider = ScriptedProvider([
+        '{"sufficient": false, "missing": "beta facts", "queries": ["beta facts"]}',
+        '{"sufficient": true, "missing": "", "queries": []}',
+        "Combined [C1] and [C2].",
+    ])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "alpha?"}))
+    assert [event["type"] for event in received] == ["status", "status", "status", "citations", "delta", "done"]
+    citations = received[3]["citations"]
+    assert [citation["chunk_id"] for citation in citations] == [first_cid, second_cid]
+    assert "You plan retrieval" in provider.calls[0][0]["content"]
+    assert provider.calls[-1][-1]["content"].endswith("</request_json>")
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["recursion_stop_reason"] == "sufficient"
+    assert run["coverage"]["recursion_rounds"] == [{"round": 2, "queries": 1, "added_chunks": 1}]
+    assert run["metrics"]["stage_calls"]["retrieval_planner"] == 2
+    assert "beta facts" not in json.dumps(run)
+
+
+def test_recursive_search_stops_when_evidence_is_sufficient(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "alpha evidence")
+    monkeypatch.setattr(chat, "RETRIEVAL_MAX_ROUNDS", 2)
+    provider = ScriptedProvider(['{"sufficient": true, "queries": []}', "Answer [C1]."])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "alpha?"}))
+    assert [event["type"] for event in received] == ["status", "status", "citations", "delta", "done"]
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["recursion_stop_reason"] == "sufficient"
+    assert run["coverage"]["recursion_rounds"] == []
+    assert len(provider.calls) == 2
+
+
+def test_recursive_planner_unparsed_reply_falls_back_to_single_pass(env, monkeypatch):
+    client, nid, _, _ = env
+    add_source(nid, "alpha evidence")
+    monkeypatch.setattr(chat, "RETRIEVAL_MAX_ROUNDS", 2)
+    provider = ScriptedProvider(["this is not a plan", "Answer [C1]."])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "alpha?"}))
+    assert received[-1]["type"] == "done"
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["recursion_stop_reason"] == "planner_unparsed"
+    assert run["coverage"]["recursion_rounds"] == []
+
+
+def test_recursive_search_disabled_by_zero_rounds(env):
+    client, nid, fake, _ = env
+    add_source(nid, "alpha evidence")
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "alpha?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "done"]
+    assert all("You plan retrieval" not in message["content"] for call in fake.calls for message in call)
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["recursion_rounds"] == [] and run["coverage"]["recursion_stop_reason"] is None
+
+
+def test_conversation_memory_and_prior_cited_sources_are_bounded(env):
+    citations = [{"number": 1, "chunk_id": "c1", "source_id": "s1", "source_name": "Faculty load.pdf"},
+                 {"number": 2, "chunk_id": "c2", "source_id": "s1", "source_name": "Faculty load.pdf"},
+                 {"number": 3, "chunk_id": "c3", "source_id": "s2", "source_name": "Leave Policy.pdf"}]
+    history = [{"role": "user", "content": "min and max load?"},
+               {"role": "assistant", "content": "spaced " * 400, "citations": citations}]
+    assert chat.prior_cited_sources(history) == ["s1", "s2"]
+    assert chat.prior_cited_sources([{"role": "assistant", "content": "a", "citations": json.dumps(citations)}]) == ["s1", "s2"]
+    assert chat.prior_cited_sources([{"role": "user", "content": "no answers yet"}]) == []
+    memory = chat.conversation_memory(history)
+    assert memory.startswith("Previous assistant answer (conversation state only, not evidence): ")
+    assert "Faculty load.pdf; Leave Policy.pdf" in memory
+    assert len(memory) <= chat.MEMORY_MAX_CHARS
+    assert len(chat.conversation_memory(history, max_chars=80)) <= 80
+    assert chat.conversation_memory([]) == ""
+
+
+def test_evidence_budget_scales_with_active_context(env, monkeypatch):
+    monkeypatch.setattr(models, "NUM_CTX", 16384)
+    at_16k = chat.evidence_char_budget("question", "memory")
+    assert at_16k == models.prompt_char_budget() - len(chat.SYSTEM_PROMPT) - len("question") - len("memory") - 600
+    assert at_16k < retrieval.EVIDENCE_BUDGET
+    monkeypatch.setattr(models, "NUM_CTX", 65536)
+    assert chat.evidence_char_budget("question", "memory") == retrieval.EVIDENCE_BUDGET
+    monkeypatch.setattr(models, "NUM_CTX", 2048)
+    assert chat.evidence_char_budget("q", "") >= 4_000
+
+
+def test_followup_rewrite_scopes_retrieval_to_prior_cited_sources(env, monkeypatch):
+    client, nid, _, _ = env
+    load_sid, load_cid = add_source(nid, "Associate professor teaching load minimum maximum credit hours",
+                                    name="Faculty load.pdf")
+    add_source(nid, "Unrelated recruitment and hiring procedure text", name="Recruitment.pdf")
+    conversation = db.row("SELECT id FROM conversations WHERE notebook_id=?", (nid,))["id"]
+    citations = [{"number": 1, "namespace": "C", "chunk_id": load_cid, "source_id": load_sid,
+                  "source_name": "Faculty load.pdf", "page": None, "excerpt": "load"}]
+    with db.connection() as conn:
+        conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)",
+                     (db.uid(), conversation, "user", "What are the min and max faculty loads for an associate professor?", "[]", db.now()))
+        conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)",
+                     (db.uid(), conversation, "assistant", "Load details [C1]", json.dumps(citations), db.now()))
+    provider = ScriptedProvider(["total teaching load for three MS courses, eight MS supervisions, one PhD supervision",
+                                 "Your total load is 51 credit hours [C1]."])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat",
+                                  json={"question": "so i am teaching 3 different MS courses and have taken up 8 MS and 1 PhD supervisions, so how much my total load?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "done"]
+    assert all(citation["source_name"] == "Faculty load.pdf" for citation in received[0]["citations"])
+    assert "standalone search query" in provider.calls[0][0]["content"]
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["followup_rewritten"] is True
+    assert run["coverage"]["retrieval_scope"] == "prior_cited_sources"
+    assert run["coverage"]["conversation_memory_chars"] > 0
+    assert "so i am teaching" not in json.dumps(run)
+    assert provider.calls[0][-1]["content"].startswith("Conversation:")
+
+
+def test_followup_scope_falls_back_to_notebook_when_prior_sources_have_no_hits(env, monkeypatch):
+    client, nid, _, _ = env
+    prior_sid, prior_cid = add_source(nid, "Legacy archived unrelated notes", name="Old.pdf", vector=(-1, 0))
+    leave_sid, leave_cid = add_source(nid, "Faculty leave policy terms and probation conditions", name="Leave Policy.pdf")
+    conversation = db.row("SELECT id FROM conversations WHERE notebook_id=?", (nid,))["id"]
+    citations = [{"number": 1, "namespace": "C", "chunk_id": prior_cid, "source_id": prior_sid,
+                  "source_name": "Old.pdf", "page": None, "excerpt": "old"}]
+    with db.connection() as conn:
+        conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)",
+                     (db.uid(), conversation, "user", "Old topic?", "[]", db.now()))
+        conn.execute("INSERT INTO messages VALUES(?,?,?,?,?,?)",
+                     (db.uid(), conversation, "assistant", "Old answer [C1]", json.dumps(citations), db.now()))
+    provider = ScriptedProvider(["and what about leave?", "Leave applies [C1]."])
+    monkeypatch.setattr(models, "provider", provider)
+    received = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "and what about leave?"}))
+    assert [event["type"] for event in received] == ["citations", "delta", "done"]
+    assert all(citation["source_name"] == "Leave Policy.pdf" for citation in received[0]["citations"])
+    run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
+    assert run["coverage"]["retrieval_scope"] == "notebook_fallback"
+
+
+def test_retrieve_honors_evidence_budget(env):
+    _, nid, _, _ = env
+    for index in range(6):
+        add_source(nid, f"budget tested phrase number {index}")
+    full = retrieval.retrieve(nid, "budget tested phrase")
+    assert len(full) > 2
+    limit = len(retrieval.evidence_text(full[:2]))
+    tight = retrieval.retrieve(nid, "budget tested phrase", evidence_budget=limit)
+    assert len(tight) < len(full)
+    assert len(retrieval.evidence_text(tight)) <= limit
+
+
+def test_focused_selection_narrows_to_leading_source_neighbourhood(env):
+    _, nid, _, _ = env
+    leading, lead_cid = add_source(nid, "alpha load minimum maximum rules", name="Faculty load.pdf", vector=(1.0, 0.0))
+    add_source(nid, "alpha load tables appendix notes", name="Near.pdf", vector=(0.8, 0.6))
+    chosen = retrieval.retrieve(nid, "alpha load")
+    assert {c["source_id"] for c in chosen} == {leading}
+    assert chosen[0]["id"] == lead_cid
+    close, _ = add_source(nid, "alpha load summary notes", name="Close.pdf", vector=(0.999, 0.045))
+    chosen = retrieval.retrieve(nid, "alpha load")
+    assert {c["source_id"] for c in chosen} == {leading, close}
 
 
 @pytest.mark.parametrize("answer", ["A fact [1].", "Linked facts [1] and [2, 3]."])
@@ -732,8 +920,10 @@ def test_chat_stream_history_citations_failure_and_diagnostics(env):
     second = events(client.post(f"/api/notebooks/{nid}/chat", json={"question": "key follow-up?"}))
     assert [e["type"] for e in second] == ["citations", "delta", "retry", "delta", "error"]
     assert len(client.get(f"/api/notebooks/{nid}/messages").json()) == 2
-    assert all(m["role"] != "assistant" for m in fake.calls[1])
-    assert "prior_user_questions_not_evidence" in fake.calls[1][-1]["content"]
+    assert "standalone search query" in fake.calls[1][0]["content"]
+    assert all(m["role"] != "assistant" for m in fake.calls[2])
+    assert "prior_user_questions_not_evidence" in fake.calls[2][-1]["content"]
+    assert "conversation_memory_not_evidence" in fake.calls[2][-1]["content"]
     runs = client.get(f"/api/notebooks/{nid}/diagnostics?limit=2").json()
     assert {r["status"] for r in runs} == {"success", "error"}
     assert runs[0]["chunk_ids"] == [cid]
@@ -1119,7 +1309,7 @@ def test_escaped_chat_question_and_history_never_start_oversized_generation(env)
     assert db.row("SELECT COUNT(*) AS n FROM messages")["n"] == 0
     run = client.get(f"/api/notebooks/{nid}/diagnostics").json()[0]
     assert run["status"] == "error" and run["metrics"]["call_count"] == 0
-    assert run["coverage"]["chat_input_budget_chars"] == chat.MAX_CHAT_INPUT_CHARS
+    assert run["coverage"]["chat_input_budget_chars"] == models.prompt_char_budget()
     assert huge not in json.dumps(run)
     assert events(client.post(f"/api/notebooks/{nid}/chat", json={"question": huge, "source_ids": []}))[-1]["type"] == "error"
     assert db.row("SELECT COUNT(*) AS n FROM messages")["n"] == 0

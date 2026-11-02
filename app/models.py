@@ -20,9 +20,24 @@ CONTEXT_OPTIONS = (2048, 4096, 8192, 16384, 32768, 65536)
 THINKING_OPTIONS = ("auto", "off", "low", "medium", "high", "max", "on")
 TEMPERATURE_OPTIONS = (0.0, 0.2, 0.4, 0.7, 1.0)
 MIN_NUM_CTX, MAX_NUM_CTX = min(CONTEXT_OPTIONS), max(CONTEXT_OPTIONS)
+CHARS_PER_TOKEN = 3.3
+PROMPT_RESERVE_TOKENS = 640  # system prompt, question, conversation memory, JSON wrapper
+MAX_PROMPT_CHARS = 60_000  # mirrors the historical serialized chat input cap
 
 if THINKING not in THINKING_OPTIONS:
     THINKING = "auto"
+
+
+def prompt_char_budget():
+    """Conservative serialized-character budget for one chat user message.
+
+    Derived from the active context size minus the output reservation, so a 16k
+    local model is not handed a 42k-character evidence payload it cannot hold.
+    Characters, not tokens: JSON escaping and numeric source text compress worse
+    than prose.
+    """
+    tokens = max(256, NUM_CTX - NUM_PREDICT - PROMPT_RESERVE_TOKENS)
+    return max(4_000, min(MAX_PROMPT_CHARS, int(tokens * CHARS_PER_TOKEN)))
 
 
 def set_generation_settings(model=None, num_ctx=None, temperature=None, thinking=None):

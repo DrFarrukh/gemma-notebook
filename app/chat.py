@@ -1,6 +1,7 @@
 """Grounded NDJSON chat and two-stage Studio orchestration."""
 import asyncio
 import json
+import os
 import re
 import time
 
@@ -34,10 +35,34 @@ ARTIFACT_PROMPTS = {
 }
 MAX_SYNTHESIS_INPUT_CHARS = 42_000  # Serialized JSON chars, not tokens or total context.
 MAX_MAP_EVIDENCE_CHARS = 28_000
-MAX_CHAT_INPUT_CHARS = 60_000  # Full structured user message, including JSON escaping.
 MAX_EXHAUSTIVE_SOURCES = 50
 MAX_EXHAUSTIVE_MAP_INPUT_CHARS = 30_000
 MAX_EXHAUSTIVE_RECORD_CHARS = 2400
+FOLLOWUP_REWRITE_PROMPT = (
+    "You rewrite the user's newest question into ONE standalone search query for a document search engine. "
+    "Use the conversation to resolve pronouns, references, and omitted subjects. Keep names, dates, numbers, "
+    "and policy terms. Output only the query text, on one line, at most 300 characters. Do not answer the question.")
+REWRITE_TURN_CHARS = 400
+REWRITE_TIMEOUT = 45
+MEMORY_MAX_CHARS = 700
+MEMORY_ANSWER_CHARS = 400
+RETRIEVAL_MAX_ROUNDS = max(0, int(os.getenv("RETRIEVAL_ROUNDS", "3")))
+RECURSION_SEED_FRACTION = 0.5
+RECURSION_DEADLINE_SECONDS = 600
+RECURSION_MERGE_LIMIT = 4  # Chunks accepted per planner query.
+RECURSION_QUERY_OVERLAP = 0.7  # Planner queries this similar to an earlier one are ignored.
+PLANNER_TIMEOUT = 90
+PLANNER_PREVIEW_CHARS = 9_000
+RETRIEVAL_PLANNER_PROMPT = (
+    "You plan retrieval for a source-grounded research assistant. You see the user's question and the evidence "
+    "found so far. Decide whether the evidence is sufficient to answer the whole question accurately with citations. "
+    "Prefer sufficient true whenever the key facts needed for a complete cited answer are present; request more only "
+    "for materially missing facts. If a part is unsupported or you are not fully confident, set sufficient to false "
+    "and give up to 3 short, specific search queries that could find the missing facts in the document collection. "
+    "Never answer the question. "
+    'Reply with JSON only, on one line: {"sufficient": true or false, "missing": "short note", "queries": ["..."]}. '
+    'Example: {"sufficient": false, "missing": "probation leave eligibility", "queries": '
+    '["probation confirmation and leave eligibility", "leave without pay rules for faculty"]}')
 VALIDATION_FAILURE_CODES = frozenset({
     "no_valid_citations", "invalid_citation_ids", "malformed_citation", "uncited_source_row",
     "missing_source_row", "duplicate_source_row", "source_completeness_failure",
@@ -259,7 +284,311 @@ def _record(notebook_id, kind, status, retrieval_ms, generation_ms, chunk_ids, c
         pass  # diagnostics must not interfere with generation
 
 
-def _messages(question, chunks, history=()):
+def _history_items(history):
+    return [item for item in history if item.get("role") in {"user", "assistant"} and (item.get("content") or "").strip()]
+
+
+def prior_cited_sources(history):
+    """Source IDs cited by the most recent assistant answer, if any; order preserved."""
+    for item in reversed(list(history)):
+        if item.get("role") != "assistant":
+            continue
+        citations = item.get("citations")
+        if isinstance(citations, str):
+            try:
+                citations = json.loads(citations)
+            except json.JSONDecodeError:
+                citations = []
+        ids = []
+        for citation in citations or ():
+            source_id = citation.get("source_id") if isinstance(citation, dict) else None
+            if isinstance(source_id, str) and source_id and source_id not in ids:
+                ids.append(source_id)
+        return ids
+    return []
+
+
+def conversation_memory(history, max_chars=MEMORY_MAX_CHARS):
+    """Bounded digest of the latest answer and its cited sources; conversational state, never evidence."""
+    last = None
+    for item in reversed(list(history)):
+        if item.get("role") == "assistant" and (item.get("content") or "").strip():
+            last = item
+            break
+    if last is None:
+        return ""
+    citations = last.get("citations")
+    if isinstance(citations, str):
+        try:
+            citations = json.loads(citations)
+        except json.JSONDecodeError:
+            citations = []
+    names = []
+    for citation in citations or ():
+        name = citation.get("source_name") if isinstance(citation, dict) else None
+        if isinstance(name, str) and name and name not in names:
+            names.append(name)
+    digest = ("Previous assistant answer (conversation state only, not evidence): "
+              + " ".join(last["content"].split())[:MEMORY_ANSWER_CHARS])
+    if names:
+        digest += " | Sources cited previously: " + "; ".join(names[:6])
+    return digest[:max_chars]
+
+
+async def rewrite_followup(question, history):
+    """One small local call that makes a follow-up standalone; the raw question on any failure."""
+    turns = [f"{item['role']}: {' '.join((item.get('content') or '').split())[:REWRITE_TURN_CHARS]}"
+             for item in _history_items(history)[-4:]]
+    if not turns:
+        return question, False, None
+    payload = "Conversation:\n" + "\n".join(turns) + "\nNew question: " + question
+    parts, model_metrics = [], None
+
+    async def one_line():
+        nonlocal model_metrics
+        async for event in models.provider.stream(
+                [{"role": "system", "content": FOLLOWUP_REWRITE_PROMPT},
+                 {"role": "user", "content": payload}], think=False):
+            if event.type == "text":
+                parts.append(event.text)
+            elif event.type == "metrics":
+                model_metrics = event.metrics
+
+    try:
+        await asyncio.wait_for(one_line(), timeout=REWRITE_TIMEOUT)
+    except Exception:
+        return question, False, None
+    rewritten = " ".join("".join(parts).split())
+    if not rewritten or len(rewritten) > 400:
+        return question, False, model_metrics
+    return rewritten, rewritten != " ".join(question.split()), model_metrics
+
+
+def evidence_char_budget(question, memory):
+    """Evidence cap that leaves room for system prompt, question, memory, and output."""
+    reserved = len(SYSTEM_PROMPT) + len(question) + len(memory) + 600
+    return max(4_000, min(retrieval.EVIDENCE_BUDGET, models.prompt_char_budget() - reserved))
+
+
+async def plan_retrieval(question, history, source_ids, metrics=None):
+    """Choose the retrieval query, source scope, and budgets for this turn."""
+    history = list(history or [])
+    recent_questions = [item["content"] for item in history if item.get("role") == "user"][-2:]
+    mode = retrieval.retrieval_mode(question)
+    memory = conversation_memory(history)
+    prior_sources = prior_cited_sources(history)
+    search_query, rewritten = question, False
+    has_prior_answer = any(item.get("role") == "assistant" and (item.get("content") or "").strip()
+                           for item in history)
+    if mode != "exhaustive" and has_prior_answer:
+        if metrics is not None:
+            metrics.start("followup_rewrite")
+        search_query, rewritten, rewrite_metrics = await rewrite_followup(question, history)
+        if metrics is not None and rewrite_metrics:
+            metrics.finish(rewrite_metrics)
+    contextualized = rewritten or retrieval.contextualize_retrieval_query(question, recent_questions) != question
+    followup = retrieval.is_contextual_followup(question)
+    scope_kind, scope_ids = "notebook", None
+    if source_ids is not None:
+        scope_kind, scope_ids = "explicit", source_ids
+    elif followup and prior_sources:
+        # Focus the search on the sources the previous answer actually used.
+        scope_kind, scope_ids = "prior_cited_sources", prior_sources
+    budget = None if mode == "exhaustive" else evidence_char_budget(question, memory)
+    return {"mode": mode, "recent_questions": recent_questions, "memory": memory,
+            "search_query": search_query, "rewritten": rewritten,
+            "contextualized": contextualized, "followup": followup,
+            "scope_kind": scope_kind, "scope_ids": scope_ids, "evidence_budget": budget}
+
+
+def planner_evidence(chunks, max_chars=PLANNER_PREVIEW_CHARS):
+    """Compact, bounded evidence preview for the retrieval planner; never the full prompt."""
+    lines, used = [], 0
+    for number, chunk in enumerate(chunks, 1):
+        text = " ".join(chunk["text"].split())[:400]
+        line = f"[C{number}] {chunk['source_name']} (page {chunk['page']}): {text}"
+        if used + len(line) + 1 > max_chars:
+            break
+        lines.append(line)
+        used += len(line) + 1
+    return "\n".join(lines)
+
+
+def query_overlap(left, right):
+    """Token Jaccard similarity between two planner queries; bounded and text-free in diagnostics."""
+    left_tokens, right_tokens = retrieval._tokens(left), retrieval._tokens(right)
+    if not left_tokens or not right_tokens:
+        return 0.0
+    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+
+
+def rare_query_tokens(notebook_id, tokens, max_sources=2):
+    """Query tokens present in at most max_sources ready sources; used to admit genuinely new sources."""
+    rare = set()
+    for token in tokens:
+        row = db.row("SELECT COUNT(DISTINCT c.source_id) AS n FROM chunk_fts f "
+                     "JOIN chunks c ON c.id=f.chunk_id JOIN sources s ON s.id=c.source_id "
+                     "WHERE chunk_fts MATCH ? AND c.notebook_id=? AND s.status='ready'",
+                     (f'"{token}"', notebook_id))
+        if row and row["n"] and row["n"] <= max_sources:
+            rare.add(token)
+    return rare
+
+
+def parse_planner_reply(text):
+    """Lenient JSON extraction; None means the planner reply cannot be trusted."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    data = None
+    if match:
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            data = None
+    if not isinstance(data, dict):
+        if re.search(r"sufficient\W{0,4}true", text, re.IGNORECASE):
+            return {"sufficient": True, "queries": []}
+        return None
+    sufficient = data.get("sufficient") is True or str(data.get("sufficient", "")).strip().lower() == "true"
+    queries = []
+    raw = data.get("queries")
+    if isinstance(raw, str):
+        raw = [raw]
+    for item in raw if isinstance(raw, list) else []:
+        query = item.strip() if isinstance(item, str) else ""
+        if 2 <= len(query) <= 300 and query.casefold() not in {known.casefold() for known in queries}:
+            queries.append(query)
+        if len(queries) >= 3:
+            break
+    return {"sufficient": sufficient, "queries": queries}
+
+
+async def plan_missing_evidence(question, chunks, metrics):
+    """One bounded planner call; None when the reply cannot be parsed."""
+    payload = json.dumps({"current_question": question,
+                          "evidence_found": planner_evidence(chunks) or "No evidence found yet."},
+                         ensure_ascii=False)
+    parts = []
+    if metrics is not None:
+        metrics.start("retrieval_planner")
+
+    async def collect_reply():
+        async for event in models.provider.stream(
+                [{"role": "system", "content": RETRIEVAL_PLANNER_PROMPT},
+                 {"role": "user", "content": payload}], think=False):
+            if event.type == "text":
+                parts.append(event.text)
+            elif event.type == "metrics" and metrics is not None:
+                metrics.finish(event.metrics)
+
+    try:
+        await asyncio.wait_for(collect_reply(), timeout=PLANNER_TIMEOUT)
+    except Exception:
+        return None
+    return parse_planner_reply("".join(parts))
+
+
+async def gather_recursive_evidence(notebook_id, question, plan, retrieval_diagnostics, metrics, outcome):
+    """Initial retrieval plus bounded recursive gap-filling; yields status events.
+
+    The first pass spends only a seed fraction of the evidence budget so later
+    rounds have room for missing facts. Each planner round asks for the specific
+    facts still missing, searches the whole notebook for them, and merges only
+    chunks that fit the remaining budget without displacing existing evidence.
+    """
+    budget = plan["evidence_budget"] or retrieval.EVIDENCE_BUDGET
+    recursion = plan["mode"] == "focused" and RETRIEVAL_MAX_ROUNDS > 0
+    seed_budget = budget
+    if recursion:
+        seed_budget = min(budget, max(6_000, int(budget * RECURSION_SEED_FRACTION)))
+        yield {"type": "status", "message": "Recursive search: collecting initial evidence…"}
+    chunks = await run_in_threadpool(retrieval.retrieve, notebook_id, plan["search_query"],
+                                     source_ids=plan["scope_ids"],
+                                     prior_user_questions=(() if plan["rewritten"] else plan["recent_questions"]),
+                                     evidence_budget=seed_budget, diagnostics=retrieval_diagnostics)
+    if plan["scope_kind"] == "prior_cited_sources" and not chunks:
+        # The focused search found nothing; fall back to the whole notebook rather than refusing.
+        plan["scope_kind"] = "notebook_fallback"
+        chunks = await run_in_threadpool(retrieval.retrieve, notebook_id, plan["search_query"],
+                                         source_ids=None, prior_user_questions=(),
+                                         evidence_budget=seed_budget, diagnostics=retrieval_diagnostics)
+    outcome.update({"chunks": chunks, "rounds": [], "stop_reason": None, "seed_budget": seed_budget})
+    if not recursion:
+        return
+    seen = {chunk["id"] for chunk in chunks}
+    used_queries = [plan["search_query"]]
+    deadline = time.monotonic() + RECURSION_DEADLINE_SECONDS
+    stop_reason = "max_rounds"
+    for round_index in range(RETRIEVAL_MAX_ROUNDS):
+        if budget - len(retrieval.evidence_text(chunks)) <= 4_000:
+            stop_reason = "budget_full"
+            break
+        yield {"type": "status", "message": f"Recursive search round {round_index + 2}: checking for missing evidence…"}
+        reply = await plan_missing_evidence(question, chunks, metrics)
+        if reply is None:
+            stop_reason = "planner_unparsed"
+            break
+        if reply["sufficient"]:
+            stop_reason = "sufficient"
+            break
+        queries = [query for query in reply["queries"]
+                   if all(query_overlap(query, used) < RECURSION_QUERY_OVERLAP for used in used_queries)]
+        if not queries:
+            stop_reason = "no_new_queries"
+            break
+        outcome.setdefault("queries", []).extend(queries)
+        used_queries.extend(queries)
+        added = 0
+        for query in queries:
+            remaining = budget - len(retrieval.evidence_text(chunks))
+            if remaining <= 4_000:
+                break
+            found = await run_in_threadpool(retrieval.retrieve, notebook_id, query, source_ids=None,
+                                            prior_user_questions=(), evidence_budget=remaining,
+                                            diagnostics=retrieval_diagnostics)
+            # Deepen only the leading source(s) of the current evidence; a new source enters
+            # as a query leader or through a rare keyword absent from all current evidence.
+            best_by_source = {}
+            for chunk in chunks:
+                best_by_source[chunk["source_id"]] = max(best_by_source.get(chunk["source_id"], 0.0),
+                                                          chunk["similarity"])
+            leader_similarity = max(best_by_source.values()) if best_by_source else 0.0
+            established = {source_id for source_id, similarity in best_by_source.items()
+                           if similarity >= leader_similarity - retrieval.FOCUSED_COSINE_MARGIN}
+            established_tokens = set().union(*[retrieval._tokens(chunk["text"]) for chunk in chunks]) if chunks else set()
+            query_tokens = retrieval._tokens(query)
+            rare_tokens = await run_in_threadpool(rare_query_tokens, notebook_id, query_tokens)
+            leader = max(found, key=lambda chunk: chunk["similarity"])["source_id"] if found else None
+            added_here = 0
+            for chunk in found:
+                if added_here >= RECURSION_MERGE_LIMIT or remaining <= 4_000:
+                    break
+                if chunk["id"] in seen:
+                    continue
+                if chunk["source_id"] not in established and chunk["source_id"] != leader:
+                    fresh = query_tokens & retrieval._tokens(chunk["text"]) & rare_tokens - established_tokens
+                    if not fresh:
+                        continue
+                merged = retrieval.budgeted(chunks + [chunk], budget)
+                if len(merged) == len(chunks) + 1:
+                    chunks = merged
+                    seen.add(chunk["id"])
+                    added += 1
+                    added_here += 1
+                    remaining = budget - len(retrieval.evidence_text(chunks))
+        outcome["rounds"].append({"round": round_index + 2, "queries": len(queries), "added_chunks": added})
+        if added == 0:
+            stop_reason = "no_new_chunks"
+            break
+        if time.monotonic() > deadline:
+            stop_reason = "deadline"
+            break
+    outcome["chunks"] = chunks
+    outcome["stop_reason"] = stop_reason
+
+
+def _messages(question, chunks, history=(), memory=""):
     def strip_intent(content):
         in_code = False
         lines = []
@@ -288,13 +617,16 @@ def _messages(question, chunks, history=()):
 
     intent = [strip_intent(h["content"])
                for h in history if h["role"] == "user"][-5:]
-    prompt = json.dumps({"prior_user_questions_not_evidence": intent, "current_question": question}, ensure_ascii=False)
+    prompt = json.dumps({"prior_user_questions_not_evidence": intent,
+                         "conversation_memory_not_evidence": memory or None,
+                         "current_question": question}, ensure_ascii=False)
     # HTTP question <=12k chars; history <=5 sanitized questions of <=1000 chars.
-    # Evidence <=42k serialized chars separately; the combined user message
-    # (including escaping, history and delimiters) <=60k chars. Not token counts.
+    # Evidence is bounded separately by the active context size; the combined
+    # user message (including escaping, history, memory and delimiters) must fit
+    # the character budget derived from NUM_CTX minus the output reservation.
     user_input = ("<untrusted_evidence_jsonl>\n" + retrieval.evidence_text(chunks) +
                   "\n</untrusted_evidence_jsonl>\n<request_json>\n" + prompt + "\n</request_json>")
-    if len(user_input) > MAX_CHAT_INPUT_CHARS:
+    if len(user_input) > models.prompt_char_budget():
         raise ValueError("Chat input exceeds serialized size limit")
     return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_input}]
 
@@ -485,11 +817,13 @@ async def _exhaustive_context(question, source_groups, metrics, history, retry_s
 async def stream_chat(notebook_id, conversation_id, question, source_ids, history):
     start = time.monotonic()
     chunks, metrics, status, vram = [], RunMetrics(), "cancelled", None
+    outcome = {}
     retrieval_ms = None
     gen_start = None
-    recent_questions = [h["content"] for h in history if h["role"] == "user"][-2:]
-    mode = retrieval.retrieval_mode(question)
-    contextualized = retrieval.contextualize_retrieval_query(question, recent_questions) != question
+    plan = await plan_retrieval(question, history, source_ids, metrics)
+    mode = plan["mode"]
+    recent_questions = plan["recent_questions"]
+    contextualized = plan["contextualized"]
     retry_state = {"citation_retry_used": False, "citation_retry_succeeded": False,
                    "generation_attempts": 0, "validation_failures": []}
     source_groups = []
@@ -506,13 +840,14 @@ async def stream_chat(notebook_id, conversation_id, question, source_ids, histor
                                                     diagnostics=retrieval_diagnostics)
             chunks = [chunk for _, group in source_groups for chunk in group]
         else:
-            chunks = await run_in_threadpool(retrieval.retrieve, notebook_id, question, source_ids,
-                                             prior_user_questions=recent_questions,
-                                             diagnostics=retrieval_diagnostics)
+            async for status_event in gather_recursive_evidence(notebook_id, question, plan,
+                                                                retrieval_diagnostics, metrics, outcome):
+                yield ndjson(status_event)
+            chunks = outcome["chunks"]
         retrieval_ms = int((time.monotonic() - start) * 1000)
         citations = retrieval.citations_for(chunks)
         if mode != "exhaustive":
-            messages = _messages(question, chunks, history)
+            messages = _messages(question, chunks, history, plan["memory"])
 
         if not chunks:
             status = "insufficient"
@@ -579,6 +914,12 @@ async def stream_chat(notebook_id, conversation_id, question, source_ids, histor
                 int((time.monotonic() - gen_start) * 1000) if gen_start else None,
                 [c["id"] for c in chunks], {"selected_chunks": len(chunks),
                 "retrieval_mode": mode, "contextualized_retrieval": contextualized,
+                "followup_rewritten": plan["rewritten"], "followup_detected": plan["followup"],
+                "retrieval_scope": plan["scope_kind"],
+                "conversation_memory_chars": len(plan["memory"]),
+                "recursion_rounds": outcome.get("rounds", []),
+                "recursion_stop_reason": outcome.get("stop_reason"),
+                "recursion_seed_budget_chars": outcome.get("seed_budget"),
                 "eligible_sources": len(source_groups) if mode == "exhaustive" else None,
                 "represented_sources": len(per_source), "chunks_per_source": per_source,
                 **retrieval_diagnostics,
@@ -588,8 +929,10 @@ async def stream_chat(notebook_id, conversation_id, question, source_ids, histor
                                                if mode == "exhaustive" and source_groups else None),
                 "exhaustive_map_thinking": False if mode == "exhaustive" else None,
                 "exhaustive_synthesis_thinking": False if mode == "exhaustive" else None,
-                "min_similarity": retrieval.MIN_SIMILARITY, "evidence_budget_chars": retrieval.EVIDENCE_BUDGET,
-                "chat_input_budget_chars": MAX_CHAT_INPUT_CHARS,
+                "min_similarity": retrieval.MIN_SIMILARITY,
+                "evidence_budget_chars": (plan["evidence_budget"] if plan["evidence_budget"] is not None
+                                          else retrieval.EVIDENCE_BUDGET),
+                "chat_input_budget_chars": models.prompt_char_budget(),
                 "config": config()}, metrics, vram)
 
 

@@ -9,6 +9,7 @@ from . import db, models
 
 MIN_SIMILARITY = float(os.getenv("RETRIEVAL_MIN_SIMILARITY", "0.35"))
 EVIDENCE_BUDGET = 42_000
+FOCUSED_COSINE_MARGIN = 0.05  # Focused questions keep sources within this cosine margin of the leader.
 STOPWORDS = set("a an and are as at be by can do does for from how i in is it of on or our should the their this to was what when where which who why with you your about create concise comprehensive notebook overview key claims important evidence disagreements open questions useful faq guide structured study briefing source sources answer using only summarize".split())
 FOLLOWUP_WORDS = set("he him his she her hers they them their theirs it its that those these this same former latter other one ones previous".split())
 
@@ -44,10 +45,10 @@ def retrieval_mode(question):
 
 def is_contextual_followup(question):
     q = question.strip().lower()
-    if len(q.split()) > 18:
+    if len(q.split()) > 30:
         return False
-    return bool(re.match(r"^(?:and\b|about\b|what about\b|how about\b)", q) or
-                re.search(r"\b(?:he|him|his|she|her|hers|they|them|their|theirs|that|those|the former|the latter|the previous one|same)\b", q))
+    return bool(re.match(r"^(?:and\b|about\b|what about\b|how about\b|so\b|also\b|then\b|i am asking\b|i mean\b)", q) or
+                re.search(r"\b(?:he|him|his|she|her|hers|they|them|their|theirs|that|those|these|this|it|its|the former|the latter|the previous one|same|my|our)\b", q))
 
 
 def contextualize_retrieval_query(question, prior_user_questions=()):
@@ -266,9 +267,31 @@ def _rank_candidates(notebook_id, query, lexical_query, candidates, source_ids, 
     return ranked if mode != "focused" else ranked[:80]
 
 
-def _focused_selection(ranked, limit):
+def _focused_sources(ranked):
+    """Prefer the leading semantic source neighbourhood for focused questions.
+
+    RRF scores are nearly flat across sources while cosine separates the leading
+    source; lexical-only rankings and lexical-rescue sources keep their slots so
+    semantic narrowing never hides a keyword match the gate already accepted.
+    """
+    best_by_source = {}
+    for item in ranked:
+        current = best_by_source.get(item["source_id"])
+        if current is None or item["similarity"] > current["similarity"]:
+            best_by_source[item["source_id"]] = item
+    semantic = [item for item in best_by_source.values() if item["similarity"] >= MIN_SIMILARITY]
+    rescued = {item["source_id"] for item in best_by_source.values() if item["similarity"] < MIN_SIMILARITY}
+    if not semantic:
+        return ranked
+    leader = max(item["similarity"] for item in semantic)
+    keep = {item["source_id"] for item in semantic if item["similarity"] >= leader - FOCUSED_COSINE_MARGIN} | rescued
+    return [item for item in ranked if item["source_id"] in keep]
+
+
+def _focused_selection(ranked, limit, budget=None):
     # Only actual ranked candidates compete for diversity; no zero-score filler.
     # Round-robin diverse sources before filling remaining slots from the ranked list.
+    ranked = _focused_sources(ranked)
     chosen = []
     seen_sources = set()
     for item in ranked:
@@ -276,16 +299,16 @@ def _focused_selection(ranked, limit):
             chosen.append(item)
             seen_sources.add(item["source_id"])
             if len(chosen) >= limit:
-                return budgeted(chosen)
+                return budgeted(chosen, budget)
     for item in ranked:
         if item not in chosen and not any(_overlap(item, c) for c in chosen):
             chosen.append(item)
             if len(chosen) >= limit:
                 break
-    return budgeted(chosen)
+    return budgeted(chosen, budget)
 
 
-def _coverage_selection(ranked, limit):
+def _coverage_selection(ranked, limit, budget=None):
     # Each round visits every represented source before taking another chunk.
     grouped = {}
     for item in ranked:
@@ -300,7 +323,7 @@ def _coverage_selection(ranked, limit):
             for item in source_chunks:
                 if item in chosen or any(_overlap(item, c) for c in chosen):
                     continue
-                if len(budgeted(chosen + [item])) == len(chosen) + 1:
+                if len(budgeted(chosen + [item], budget)) == len(chosen) + 1:
                     chosen.append(item)
                     break
     return chosen
@@ -320,7 +343,8 @@ def _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_que
                             diagnostics, model_digest)
 
 
-def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questions=(), diagnostics=None):
+def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questions=(), diagnostics=None,
+             evidence_budget=None):
     digest = models.embedding_model_digest()
     candidates = scoped_chunks(notebook_id, source_ids, digest)
     if not candidates:
@@ -329,8 +353,8 @@ def retrieve(notebook_id, query, source_ids=None, limit=None, prior_user_questio
     ranked = _rank_query(notebook_id, query, candidates, source_ids, mode, prior_user_questions,
                          diagnostics, digest)
     if mode != "focused":
-        return _coverage_selection(ranked, limit)
-    return _focused_selection(ranked, 12 if limit is None else limit)
+        return _coverage_selection(ranked, limit, evidence_budget)
+    return _focused_selection(ranked, 12 if limit is None else limit, evidence_budget)
 
 
 def exhaustive_budget(source_count):
